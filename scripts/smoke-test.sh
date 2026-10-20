@@ -55,6 +55,15 @@ STATUS="$(post "${PREFIX}-3" "PRA-1001" "USR-10" "0" "${TMP_DIR}/r3.json")"
 expect_status 201 "${STATUS}" "solicitud rechazada por monto"
 grep -q '"reason":"INVALID_AMOUNT"' "${TMP_DIR}/r3.json" || fail "motivo de monto inválido inesperado"
 
+LONG_REFERENCE="$(printf 'X%.0s' {1..81})"
+STATUS="$(post "${LONG_REFERENCE}" "PRA-1001" "USR-10" "100" "${TMP_DIR}/r5.json")"
+expect_status 400 "${STATUS}" "referencia demasiado larga"
+grep -q '"code":"VALIDATION_ERROR"' "${TMP_DIR}/r5.json" || fail "no se reportó validación de longitud"
+
+STATUS="$(post "${PREFIX}-5" "PRA-1001" "USR-10" "100.005" "${TMP_DIR}/r6.json")"
+expect_status 400 "${STATUS}" "monto con más de 2 decimales"
+grep -q '"code":"VALIDATION_ERROR"' "${TMP_DIR}/r6.json" || fail "no se reportó validación de escala"
+
 STATUS="$(post "${PREFIX}-1" "PRA-1001" "USR-10" "700000" "${TMP_DIR}/r4.json")"
 expect_status 409 "${STATUS}" "conflicto de referencia con payload distinto"
 grep -q '"code":"REFERENCE_CONFLICT"' "${TMP_DIR}/r4.json" || fail "no se reportó conflicto de referencia"

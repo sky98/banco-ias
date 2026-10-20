@@ -1,5 +1,6 @@
 package co.com.bancoias.api;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -150,6 +151,138 @@ class PreApprovedUsageHandlerTest {
                 .bodyValue("{ not-json")
                 .exchange()
                 .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void rejectsTooLongRequestReference() {
+        String reference = "R".repeat(81);
+
+        client.post()
+                .uri("/api/v1/preapproved-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {
+                          "requestReference": "%s",
+                          "preApprovedId": "PRA-1",
+                          "customerId": "USR-10",
+                          "amount": 100.00
+                        }
+                        """.formatted(reference))
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.message")
+                .value(containsString("requestReference: máximo 80 caracteres"));
+    }
+
+    @Test
+    void rejectsTooLongPreApprovedId() {
+        String preApprovedId = "P".repeat(41);
+
+        client.post()
+                .uri("/api/v1/preapproved-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {
+                          "requestReference": "REF-1",
+                          "preApprovedId": "%s",
+                          "customerId": "USR-10",
+                          "amount": 100.00
+                        }
+                        """.formatted(preApprovedId))
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.message")
+                .value(containsString("preApprovedId: máximo 40 caracteres"));
+    }
+
+    @Test
+    void rejectsTooLongCustomerId() {
+        String customerId = "C".repeat(41);
+
+        client.post()
+                .uri("/api/v1/preapproved-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {
+                          "requestReference": "REF-1",
+                          "preApprovedId": "PRA-1",
+                          "customerId": "%s",
+                          "amount": 100.00
+                        }
+                        """.formatted(customerId))
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.message")
+                .value(containsString("customerId: máximo 40 caracteres"));
+    }
+
+    @Test
+    void rejectsAmountWithMoreThanTwoDecimals() {
+        client.post()
+                .uri("/api/v1/preapproved-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {
+                          "requestReference": "REF-1",
+                          "preApprovedId": "PRA-1",
+                          "customerId": "USR-10",
+                          "amount": 100.005
+                        }
+                        """)
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.message")
+                .value(containsString("amount: máximo 2 decimales"));
+    }
+
+    @Test
+    void rejectsAmountOverflowingDatabasePrecision() {
+        client.post()
+                .uri("/api/v1/preapproved-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {
+                          "requestReference": "REF-1",
+                          "preApprovedId": "PRA-1",
+                          "customerId": "USR-10",
+                          "amount": 100000000000000000
+                        }
+                        """)
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.message")
+                .value(containsString("amount: supera el máximo permitido"));
+    }
+
+    @Test
+    void acceptsAmountWithTrailingZeros() {
+        when(processUseCase.execute(any(ProcessPreApprovedRequestCommand.class)))
+                .thenReturn(Mono.just(UsageProcessingResult.created(usage(UsageStatus.APPROVED, null))));
+
+        client.post()
+                .uri("/api/v1/preapproved-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {
+                          "requestReference": "REF-1",
+                          "preApprovedId": "PRA-1",
+                          "customerId": "USR-10",
+                          "amount": 100.000
+                        }
+                        """)
+                .exchange()
+                .expectStatus()
+                .isCreated();
     }
 
     @Test

@@ -10,6 +10,7 @@ import co.com.bancoias.usecase.getpreapprovedrequest.GetPreApprovedRequestUseCas
 import co.com.bancoias.usecase.listrecentpreapprovedrequests.ListRecentPreApprovedRequestsUseCase;
 import co.com.bancoias.usecase.processpreapprovedrequest.ProcessPreApprovedRequestCommand;
 import co.com.bancoias.usecase.processpreapprovedrequest.ProcessPreApprovedRequestUseCase;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,10 @@ import reactor.core.publisher.Mono;
 public class PreApprovedUsageHandler {
 
     private static final int DEFAULT_LIMIT = 20;
+    private static final int MAX_REQUEST_REFERENCE_LENGTH = 80;
+    private static final int MAX_ID_LENGTH = 40;
+    private static final int MAX_AMOUNT_DECIMALS = 2;
+    private static final int MAX_AMOUNT_INTEGER_DIGITS = 17;
 
     private final ProcessPreApprovedRequestUseCase processUseCase;
     private final GetPreApprovedRequestUseCase getUsageUseCase;
@@ -87,15 +92,28 @@ public class PreApprovedUsageHandler {
         List<String> errors = new ArrayList<>();
         if (isBlank(body.requestReference())) {
             errors.add("requestReference: no debe estar vacío");
+        } else if (body.requestReference().trim().length() > MAX_REQUEST_REFERENCE_LENGTH) {
+            errors.add("requestReference: máximo " + MAX_REQUEST_REFERENCE_LENGTH + " caracteres");
         }
         if (isBlank(body.preApprovedId())) {
             errors.add("preApprovedId: no debe estar vacío");
+        } else if (body.preApprovedId().trim().length() > MAX_ID_LENGTH) {
+            errors.add("preApprovedId: máximo " + MAX_ID_LENGTH + " caracteres");
         }
         if (isBlank(body.customerId())) {
             errors.add("customerId: no debe estar vacío");
+        } else if (body.customerId().trim().length() > MAX_ID_LENGTH) {
+            errors.add("customerId: máximo " + MAX_ID_LENGTH + " caracteres");
         }
         if (body.amount() == null) {
             errors.add("amount: no debe ser nulo");
+        } else {
+            BigDecimal normalized = body.amount().stripTrailingZeros();
+            if (normalized.scale() > MAX_AMOUNT_DECIMALS) {
+                errors.add("amount: máximo " + MAX_AMOUNT_DECIMALS + " decimales");
+            } else if (normalized.precision() - normalized.scale() > MAX_AMOUNT_INTEGER_DIGITS) {
+                errors.add("amount: supera el máximo permitido");
+            }
         }
         if (errors.isEmpty()) {
             return Mono.empty();
