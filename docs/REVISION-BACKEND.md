@@ -3,7 +3,7 @@
 - **Fecha:** 2026-10-20
 - **Alcance:** backend `back/` (Java 21, Spring Boot 4.1.1, WebFlux, R2DBC PostgreSQL)
 - **Estado:** correcciones **H-01 a H-07** aplicadas y verificadas
-- **Commits de corrección:** `52ecdb7`, `5bc9922`, `3823752`, `a64915c`, `87964ce`; frontend y documentación posteriores
+- **Commits de corrección:** `52ecdb7`, `5bc9922`, `3823752`, `a64915c`, `87964ce`, `11855d7`, `3f1f17f`, `272c7d6`, `9765cb4`, `9f8c707`, `37fb54d`, `a24a9a7`, `1e0d808`
 
 ## Veredicto
 
@@ -15,7 +15,7 @@ cerrado con el frontend Angular (RF07), los ADR, `docs/arquitectura.md`, `docs/u
 
 ## Evidencia
 
-- **50 tests, 0 fallos, 0 errores, 0 skipped** (`make test`).
+- **50 tests de backend, 26 tests de frontend, 0 fallos, 0 errores, 0 skipped** (`make test`).
 - **Smoke test E2E exitoso** (`scripts/smoke-test.sh`):
   aprobación, replay idempotente, rechazo por cupo, rechazo por monto, **referencia
   demasiado larga (`400`)**, **monto con más de 2 decimales (`400`)**, conflicto `409`,
@@ -26,6 +26,8 @@ cerrado con el frontend Angular (RF07), los ADR, `docs/arquitectura.md`, `docs/u
 - **Contenedores detenidos** y volumen de prueba eliminado; `make up` arranca limpio.
 
 ### Distribución de pruebas
+
+**Backend (50 tests):**
 
 | Suite | Tests |
 |---|---:|
@@ -38,7 +40,18 @@ cerrado con el frontend Angular (RF07), los ADR, `docs/arquitectura.md`, `docs/u
 | `ProcessPreApprovedRequestUseCaseTest` | 2 |
 | `PreApprovedUsageR2dbcAdapterTest` | 2 |
 | `ObjectMapperConfigTest` + `UseCasesConfigTest` | 2 |
-| **Total** | **50** |
+| **Total backend** | **50** |
+
+**Frontend (26 tests, Vitest):**
+
+| Suite | Tests |
+|---|---:|
+| `preapproved-requests.page.spec.ts` | 21 |
+| `preapproved-usage.service.spec.ts` | 3 |
+| `app.spec.ts` | 2 |
+| **Total frontend** | **26** |
+
+**Total general: 76 tests, 0 fallos.**
 
 Cobertura por módulo (Jacoco, sin reporte agregado):
 
@@ -58,16 +71,20 @@ Cobertura por módulo (Jacoco, sin reporte agregado):
 - Sin bloqueo en el event loop: validación declarativa con Bean Validation y
   `ValidadorRequest`, exclusión de métricas de repositorios y allow-list de
   `SecureRandom` más la lectura de classpath de Springdoc durante `/v3/api-docs` en pruebas.
+- Estilo funcional sin `if` en el código principal: validación con anotaciones, `Optional`
+  en dominio, `switch` exhaustivo sobre `UsageProcessingResult.Outcome`, operadores
+  reactivos (`switchIfEmpty`, `filter`, `Mono.justOrEmpty`) y `Stream.iterate` en la
+  cadena de causas. Ver ADR-009.
 
 ## Concurrencia e idempotencia
 
-- Descuento atómico en `PreApprovedUsageR2dbcAdapter.java:90`:
+- Descuento atómico en `PreApprovedUsageR2dbcAdapter.java:89`:
   `UPDATE ... WHERE available_amount >= :amount RETURNING available_amount`.
-- Transacción consumida con `.single()` en `PreApprovedUsageR2dbcAdapter.java:68` para esperar
+- Transacción consumida con `.single()` en `PreApprovedUsageR2dbcAdapter.java:69` para esperar
   el commit real; `.next()` cancelaba antes del commit.
 - `request_reference` es `UNIQUE` (`schema.sql:10`). Si dos solicitudes compiten, la perdedora
   relee y responde replay o `409`. La violación de unicidad se detecta por SQLState `23505`
-  en la cadena de causas (`PreApprovedUsageR2dbcAdapter.java:191`), no por el texto del error.
+  en la cadena de causas (`PreApprovedUsageR2dbcAdapter.java:189`), no por el texto del error.
 - Rechazos de negocio persistidos con `reason`; aprobadas con `reason = null`.
 - `GET /api/v1/preapproved-requests` ordena por `processed_at DESC, id DESC`.
 
@@ -89,7 +106,7 @@ Cobertura por módulo (Jacoco, sin reporte agregado):
 | `GET` | `/api/v1/preapproved/{preApprovedId}` | `200`, `404` |
 
 Los rechazos de negocio responden `201` con estado `REJECTED`; el payload malformado responde
-`400` sin persistir. `ApiExceptionHandler.java:17` centraliza el mapeo de errores.
+`400` sin persistir. `ApiExceptionHandler.handle` (línea 30) centraliza el mapeo de errores.
 
 Reglas de validación del payload:
 
@@ -104,7 +121,7 @@ Reglas de validación del payload:
 | ID | Severidad | Ubicación | Hallazgo | Impacto | Corrección aplicada | Estado |
 |---|---|---|---|---|---|---|
 | **H-01** | **Alta / bloqueante** | `RouterRest.java`, DTOs | OpenAPI exponía las rutas sin `requestBody`, sin esquemas de respuesta y todas como `200` | Documentación engañosa para consumidores y para la entrega | `@Operation`, `@RequestBody`, `@Parameter` y `@ApiResponse`; esquemas en DTOs; `docs/api/openapi.yaml`; test de contrato | **Resuelto** |
-| **H-02** | Media | `PreApprovedUsageR2dbcAdapter.java:191` | Detección de duplicado por texto `"duplicate key"` | Frágil ante cambios de driver/mensaje | Validar SQLState `23505` en la cadena de causas; test unitario | **Resuelto** |
+| **H-02** | Media | `PreApprovedUsageR2dbcAdapter.java:189` | Detección de duplicado por texto `"duplicate key"` | Frágil ante cambios de driver/mensaje | Validar SQLState `23505` en la cadena de causas; test unitario | **Resuelto** |
 | **H-03** | **Alta / bloqueante** | `CreatePreApprovedUsageRequest.java` | Sin validación de longitudes (`VARCHAR(40/80)`) | Un valor demasiado largo provocaba error de BD y `500` en vez de `400` | Bean Validation (`@NotBlank`, `@Size`) con `trim()` en el DTO y `ValidadorRequest`; tests y smoke test | **Resuelto** |
 | **H-04** | Media | `PayloadHasher.java`, `schema.sql:13` | La BD redondea a 2 decimales, pero el hash usaba la escala original | Un monto como `100.005` se guardaba como `100.01`; un replay con `100.01` se trataba como conflicto | `@MaxDecimalPlaces(2)` y `@MaxIntegerDigits(17)` rechazan con `400`; `100.000` se acepta; test de escala y overflow | **Resuelto** |
 | **H-05** | Baja | `application.yaml` | `spring.sql.init.mode=always` en todos los entornos | Aceptable para demo; riesgoso para producción | Externalizar `SQL_INIT_MODE`, `SQL_INIT_SCHEMA_LOCATIONS` y `SQL_INIT_DATA_LOCATIONS`; Flyway/Liquibase queda como mejora para producción | **Mitigado** |
