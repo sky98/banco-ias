@@ -1,7 +1,7 @@
 # Plan de implementación — Prueba técnica BancoIAS
 
-> Estado: **backend implementado y con pruebas en verde**. Frontend Angular, ADRs y
-> documentación de arquitectura pendientes. Commit pendiente de autorización explícita.
+> Estado: **backend implementado, corregido y con pruebas en verde**. Hallazgos H-01 a H-06
+> resueltos o mitigados. Frontend Angular, ADRs y documentación de arquitectura pendientes.
 
 ## Contexto
 
@@ -301,7 +301,7 @@ Códigos HTTP:
 - `201`: solicitud nueva procesada, aprobada o rechazada.
 - `200`: replay idempotente.
 - `409`: misma referencia con payload diferente.
-- `400`: validación.
+- `400`: validación (campos obligatorios, longitudes, escala del monto o límite inválido).
 - `404`: consulta no encontrada.
 - `500`: error inesperado.
 
@@ -339,6 +339,19 @@ Toda compilación/ejecución Java se hace dentro de contenedores con JDK 21. El
 `Dockerfile` del backend es multi-stage: compila con `gradle:9.8.0-jdk21` y ejecuta con
 `eclipse-temurin:21-jre-alpine` como usuario no root.
 
+Variables de entorno del backend (defaults en `application.yaml` y `.env.example`):
+
+| Variable | Default | Uso |
+|---|---|---|
+| `SERVER_PORT` | `8080` | Puerto HTTP |
+| `SPRING_R2DBC_URL` | `r2dbc:postgresql://localhost:5432/bancoias` | Conexión R2DBC |
+| `SPRING_R2DBC_USERNAME` | `bancoias` | Usuario de base de datos |
+| `SPRING_R2DBC_PASSWORD` | `bancoias` | Contraseña de base de datos |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:4200,http://localhost:8080,http://localhost:8081` | Orígenes permitidos, separados por coma |
+| `SQL_INIT_MODE` | `always` | Modo de inicialización SQL |
+| `SQL_INIT_SCHEMA_LOCATIONS` | `classpath:schema.sql` | Script de esquema |
+| `SQL_INIT_DATA_LOCATIONS` | `classpath:data.sql` | Script de datos semilla |
+
 ### Makefile
 
 Se incluirá un `Makefile` con objetivos de uso diario. `make` sin argumentos mostrará la ayuda.
@@ -364,7 +377,7 @@ Regla de seguridad: `make down` no borra datos; solo `make reset` elimina el vol
 
 ## Pruebas
 
-Backend:
+Backend (**50 tests, 0 fallos**):
 
 - Unitarias de la política y casos de uso para todas las reglas.
 - Integración R2DBC con Testcontainers PostgreSQL.
@@ -381,6 +394,9 @@ Notas de implementación de pruebas:
 - La integración permite bloqueo dentro de `SecureRandom.nextBytes` porque el driver
   PostgreSQL lee `/dev/urandom` al abrir conexiones SCRAM; es una lectura no bloqueante
   del sistema operativo, no una operación de negocio.
+- El test de contrato OpenAPI permite la lectura de classpath de Springdoc
+  (`RandomAccessFile.readBytes` y `ClassReader.readStream`) porque genera el documento
+  desde los metadatos de las clases, no por tráfico de negocio.
 
 Frontend:
 
@@ -395,6 +411,8 @@ REF-001 600000 -> APPROVED, remaining 400000
 replay REF-001 -> mismo resultado, cupo intacto
 REF-002 500000 -> REJECTED, reason INSUFFICIENT_QUOTA
 REF-003 amount 0 -> REJECTED, reason INVALID_AMOUNT
+referencia de 81 caracteres -> 400 (VALIDATION_ERROR)
+amount 100.005 -> 400 (VALIDATION_ERROR)
 REF-004 distinto payload sobre REF-001 -> 409
 6 solicitudes concurrentes de 400000 sobre PRA-2001 -> 5 aprobadas, 1 rechazada
 ```
@@ -405,7 +423,7 @@ REF-004 distinto payload sobre REF-001 -> 409
 - `docs/arquitectura.md` con diagramas Mermaid de capas, modelo y secuencias.
 - ADRs con contexto, alternativas, decisión, trade-offs y validación.
 - `docs/uso-ia.md` con actividades asistidas, resultados usados, validación, correcciones y manejo de datos.
-- `docs/api/openapi.yaml`.
+- `docs/api/openapi.yaml` generado desde `/v3/api-docs.yaml`.
 - Historial de commits por fase.
 
 ## Orden de ejecución y commits propuestos
@@ -421,6 +439,9 @@ REF-004 distinto payload sobre REF-001 -> 409
 8. docs: arquitectura, ADRs, uso de IA y runbook
 9. feat(back): RabbitMQ opcional (solo si el alcance obligatorio está cerrado)
 ```
+
+La secuencia ejecutada quedó en 7 commits de implementación del backend más 5 commits de
+correcciones y documentación; el detalle está en `git log`.
 
 ## Criterios de aceptación
 
@@ -451,14 +472,17 @@ Backend terminado:
 - `schema.sql`, `data.sql` y `application.yaml`.
 - Dockerfile multi-stage, `docker-compose.yml`, `Makefile`, README y smoke test.
 - Pruebas unitarias, de endpoints, integración con Testcontainers, idempotencia,
-  conflictos, rechazos y concurrencia.
+  conflictos, rechazos y concurrencia (**50 tests**).
+- Hallazgos **H-01 a H-06** corregidos: OpenAPI completo, validación de longitudes y
+  escala, detección de duplicados por SQLState `23505`, SQL init y CORS externalizados.
+- `docs/api/openapi.yaml` generado y smoke test ampliado con casos `400`.
 
 Pendiente:
 
 - Frontend Angular (RF07).
-- `docs/arquitectura.md`, ADRs, `docs/api/openapi.yaml` y `docs/uso-ia.md`.
+- `docs/arquitectura.md`, ADRs y `docs/uso-ia.md`.
 - RabbitMQ opcional.
-- Autorización del usuario para el primer commit.
+- Flyway/Liquibase para producción (H-05).
 
 ### Ajustes ya incorporados
 
@@ -468,6 +492,11 @@ Pendiente:
 - Estrategia de concurrencia cambiada de bloqueo pesimista a actualización condicional atómica.
 - Catálogo de motivos de rechazo y decisión de persistir la razón general que exige RF03.
 - Makefile con comandos `up`, `down`, `reload`, `reset`, `test`, `smoke`, entre otros.
+- OpenAPI anotado en router y DTOs, con test de contrato y `docs/api/openapi.yaml`.
+- Validación de longitudes (80/40/40) y de `amount` (2 decimales, 17 dígitos enteros).
+- Duplicados detectados por SQLState `23505`, no por texto del driver.
+- SQL init y CORS externalizados por variables de entorno.
+- Suite backend ampliada a 50 tests y smoke test con casos `400`.
 - Modelo renombrado a `PreApprovedUsage` para cumplir la regla del scaffold.
 - Transacción reactiva consumida con `single()` para garantizar el commit.
 - Validación manual en el handler para no bloquear el event loop.

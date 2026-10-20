@@ -1,0 +1,332 @@
+openapi: 3.1.0
+info:
+  title: OpenAPI definition
+  version: v0
+servers:
+- url: http://localhost:8080
+  description: Generated server url
+tags:
+- name: Actuator
+  description: Monitor and interact
+  externalDocs:
+    description: Spring Boot Actuator Web API Documentation
+    url: https://docs.spring.io/spring-boot/docs/current/actuator-api/html/
+paths:
+  /actuator/health/{path}:
+    get:
+      tags:
+      - Actuator
+      summary: Actuator web endpoint 'health-path'
+      operationId: health
+      parameters:
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                type: object
+            application/vnd.spring-boot.actuator.v2+json:
+              schema:
+                type: object
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Not Found
+  /actuator/health:
+    get:
+      tags:
+      - Actuator
+      summary: Actuator web endpoint 'health'
+      operationId: health_1
+      responses:
+        "200":
+          description: OK
+          content:
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                type: object
+            application/vnd.spring-boot.actuator.v2+json:
+              schema:
+                type: object
+            application/json:
+              schema:
+                type: object
+  /actuator:
+    get:
+      tags:
+      - Actuator
+      summary: Actuator root web endpoint
+      operationId: links
+      responses:
+        "200":
+          description: OK
+          content:
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  additionalProperties:
+                    $ref: "#/components/schemas/Link"
+            application/vnd.spring-boot.actuator.v2+json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  additionalProperties:
+                    $ref: "#/components/schemas/Link"
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  additionalProperties:
+                    $ref: "#/components/schemas/Link"
+  /api/v1/preapproved-requests:
+    get:
+      tags:
+      - Solicitudes
+      summary: Lista las solicitudes recientes
+      operationId: listRecentPreApprovedUsages
+      parameters:
+      - name: limit
+        in: query
+        description: Cantidad máxima de resultados (1-100)
+        schema:
+          type: integer
+          default: 20
+          maximum: 100
+          minimum: 1
+      responses:
+        "200":
+          description: Listado de solicitudes
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PreApprovedUsageResponse"
+        "400":
+          description: Límite inválido
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      tags:
+      - Solicitudes
+      summary: Procesa una solicitud de consumo de cupo preaprobado
+      operationId: createPreApprovedUsage
+      requestBody:
+        description: Datos de la solicitud
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePreApprovedUsageRequest"
+        required: true
+      responses:
+        "201":
+          description: "Solicitud procesada, aprobada o rechazada"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PreApprovedUsageResponse"
+        "200":
+          description: Replay idempotente de una solicitud ya procesada
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PreApprovedUsageResponse"
+        "400":
+          description: Solicitud inválida
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Referencia ya procesada con un payload distinto
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Error inesperado
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v1/preapproved-requests/{requestReference}:
+    get:
+      tags:
+      - Solicitudes
+      summary: Consulta una solicitud por su referencia
+      operationId: getPreApprovedUsage
+      parameters:
+      - name: requestReference
+        in: path
+        description: Referencia única de la solicitud
+        required: true
+        schema:
+          type: string
+          maxLength: 80
+      responses:
+        "200":
+          description: Solicitud encontrada
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PreApprovedUsageResponse"
+        "404":
+          description: Solicitud no encontrada
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServerResponse"
+  /api/v1/preapproved/{preApprovedId}:
+    get:
+      tags:
+      - Preaprobados
+      summary: Consulta el cupo disponible de un preaprobado
+      operationId: getPreApproved
+      parameters:
+      - name: preApprovedId
+        in: path
+        description: Identificador del preaprobado
+        required: true
+        schema:
+          type: string
+          maxLength: 40
+      responses:
+        "200":
+          description: Preaprobado encontrado
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PreApprovedResponse"
+        "404":
+          description: Preaprobado no encontrado
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServerResponse"
+components:
+  schemas:
+    Link:
+      type: object
+      properties:
+        href:
+          type: string
+        templated:
+          type: boolean
+    PreApprovedUsageResponse:
+      type: object
+      description: Resultado del procesamiento de una solicitud
+      properties:
+        requestReference:
+          type: string
+          description: Referencia única de la solicitud
+          example: REF-001
+        preApprovedId:
+          type: string
+          description: Identificador del preaprobado
+          example: PRA-1001
+        customerId:
+          type: string
+          description: Identificador del cliente
+          example: USR-10
+        amount:
+          type: number
+          description: Monto procesado
+          example: 600000.0
+        status:
+          type: string
+          description: Estado de la solicitud
+          example: APPROVED
+        reason:
+          type: string
+          description: Motivo del rechazo; nulo si fue aprobada
+          example: INSUFFICIENT_QUOTA
+        processedAt:
+          type: string
+          format: date-time
+          description: Fecha de procesamiento
+          example: 2026-10-19T23:30:00Z
+        remainingAmount:
+          type: number
+          description: Cupo restante después del procesamiento
+          example: 400000.0
+        replayed:
+          type: boolean
+          description: Indica si la solicitud es un replay idempotente
+          example: false
+    ApiError:
+      type: object
+      description: Error de la API
+      properties:
+        code:
+          type: string
+          description: Código de error
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          description: Mensaje descriptivo
+          example: "amount: máximo 2 decimales"
+        details:
+          description: Detalle adicional; en un 409 contiene el resultado original
+    CreatePreApprovedUsageRequest:
+      type: object
+      description: Solicitud de consumo de cupo preaprobado
+      properties:
+        requestReference:
+          type: string
+          description: Referencia única de la solicitud
+          example: REF-001
+          maxLength: 80
+        preApprovedId:
+          type: string
+          description: Identificador del preaprobado
+          example: PRA-1001
+          maxLength: 40
+        customerId:
+          type: string
+          description: Identificador del cliente
+          example: USR-10
+          maxLength: 40
+        amount:
+          type: number
+          description: Monto solicitado; máximo 2 decimales y 17 dígitos enteros
+          example: 600000.0
+      required:
+      - customerId
+      - preApprovedId
+      - requestReference
+    ServerResponse: {}
+    PreApprovedResponse:
+      type: object
+      description: Cupo preaprobado de un cliente
+      properties:
+        preApprovedId:
+          type: string
+          description: Identificador del preaprobado
+          example: PRA-1001
+        customerId:
+          type: string
+          description: Identificador del cliente
+          example: USR-10
+        status:
+          type: string
+          description: Estado del preaprobado
+          example: ACTIVE
+        availableAmount:
+          type: number
+          description: Cupo disponible
+          example: 400000.0

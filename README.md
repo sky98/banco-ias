@@ -79,6 +79,12 @@ GET  /api/v1/preapproved/{preApprovedId}
 GET  /actuator/health
 ```
 
+El contrato estático está en `docs/api/openapi.yaml`; se regenera con el backend arriba:
+
+```bash
+curl -fsS http://localhost:8080/v3/api-docs.yaml -o docs/api/openapi.yaml
+```
+
 Ejemplo:
 
 ```bash
@@ -113,7 +119,8 @@ Códigos:
 - `201`: solicitud nueva procesada (aprobada o rechazada).
 - `200`: replay idempotente con el resultado original.
 - `409`: misma referencia con payload diferente.
-- `400`: payload inválido o malformado; no se persiste.
+- `400`: payload inválido o malformado (campos vacíos, longitudes 80/40/40, más de 2
+  decimales o monto fuera de rango); no se persiste.
 - `404`: consulta no encontrada.
 - `500`: error inesperado.
 
