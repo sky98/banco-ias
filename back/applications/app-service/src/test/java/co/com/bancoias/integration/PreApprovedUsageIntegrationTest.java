@@ -16,9 +16,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -51,6 +53,9 @@ class PreApprovedUsageIntegrationTest {
 
     @Autowired
     private DatabaseClient databaseClient;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @BeforeEach
     void resetDatabase() {
@@ -186,6 +191,28 @@ class PreApprovedUsageIntegrationTest {
                 .isTrue();
         assertThat(balance("PRA-1")).isEqualByComparingTo("0.00");
         assertThat(recentUsages()).hasSize(attempts);
+    }
+
+    @Test
+    void documentsOpenApiContract() {
+        WebTestClient client = WebTestClient.bindToApplicationContext(applicationContext).build();
+
+        client.get()
+                .uri("/v3/api-docs")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$['paths']['/api/v1/preapproved-requests']['post']['requestBody']")
+                .exists()
+                .jsonPath("$['paths']['/api/v1/preapproved-requests']['post']['responses']['201']")
+                .exists()
+                .jsonPath("$['paths']['/api/v1/preapproved-requests']['post']['responses']['400']")
+                .exists()
+                .jsonPath("$['paths']['/api/v1/preapproved-requests']['post']['responses']['409']")
+                .exists()
+                .jsonPath("$['paths']['/api/v1/preapproved-requests']['get']['parameters'][0]['name']")
+                .isEqualTo("limit");
     }
 
     private UsageProcessingResult process(String reference, String preApprovedId, String customerId, String amount) {
