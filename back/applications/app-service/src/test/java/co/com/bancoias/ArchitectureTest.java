@@ -62,7 +62,7 @@ class ArchitectureTest {
     static void exportIssues() {
         try {
             ObjectMapper mapper = new ObjectMapper();
-            List.of("/home/gradle/project/applications/app-service/","/home/gradle/project/infrastructure/entry-points/reactive-web/","/home/gradle/project/domain/model/","/home/gradle/project/domain/usecase/","/home/gradle/project/","/home/gradle/project/infrastructure/driven-adapters/r2dbc-postgresql/").forEach(path -> {
+            List.of("/home/gradle/project/applications/app-service/","/home/gradle/project/infrastructure/entry-points/reactive-web/","/home/gradle/project/domain/model/","/home/gradle/project/domain/usecase/","/home/gradle/project/","/home/gradle/project/infrastructure/driven-adapters/r2dbc-postgresql/","/home/gradle/project/infrastructure/driven-adapters/rabbitmq-sender/").forEach(path -> {
                 try {
                     Files.write(Path.of(path, "build/issues.json"), mapper.writeValueAsBytes(issues.getOrDefault(path, new Utils.IssuesReport())));
                 } catch (IOException e) {

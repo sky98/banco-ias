@@ -2,6 +2,7 @@ package co.com.bancoias.usecase.processpreapprovedrequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -10,6 +11,8 @@ import co.com.bancoias.model.preapprovedusage.PreApprovedUsage;
 import co.com.bancoias.model.preapprovedusage.UsageCommand;
 import co.com.bancoias.model.preapprovedusage.UsageProcessingResult;
 import co.com.bancoias.model.preapprovedusage.UsageStatus;
+import co.com.bancoias.model.preapprovedusage.event.PreApprovedRequestEvent;
+import co.com.bancoias.model.preapprovedusage.gateways.PreApprovedRequestEventPublisher;
 import co.com.bancoias.model.preapprovedusage.gateways.PreApprovedUsageRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -28,6 +31,9 @@ class ProcessPreApprovedRequestUseCaseTest {
     @Mock
     private PreApprovedUsageRepository repository;
 
+    @Mock
+    private PreApprovedRequestEventPublisher eventPublisher;
+
     @InjectMocks
     private ProcessPreApprovedRequestUseCase useCase;
 
@@ -36,6 +42,7 @@ class ProcessPreApprovedRequestUseCaseTest {
         PreApprovedUsage usage = usage();
         UsageProcessingResult result = UsageProcessingResult.created(usage);
         when(repository.process(any(UsageCommand.class))).thenReturn(Mono.just(result));
+        when(eventPublisher.publish(any(PreApprovedRequestEvent.class))).thenReturn(Mono.empty());
 
         StepVerifier.create(useCase.execute(new ProcessPreApprovedRequestCommand(
                         " REF-1 ", " PRA-1 ", " USR-10 ", new BigDecimal("100.00"))))
@@ -52,6 +59,61 @@ class ProcessPreApprovedRequestUseCaseTest {
         assertThat(command.amount()).isEqualByComparingTo("100.00");
         assertThat(command.payloadHash()).isEqualTo(
                 PayloadHasher.hash("REF-1", "PRA-1", "USR-10", new BigDecimal("100.00")));
+        
+        verify(eventPublisher).publish(any(PreApprovedRequestEvent.class));
+    }
+
+    @Test
+    void publishesEventWhenRequestCreated() {
+        PreApprovedUsage usage = usage();
+        UsageProcessingResult result = UsageProcessingResult.created(usage);
+        when(repository.process(any(UsageCommand.class))).thenReturn(Mono.just(result));
+        when(eventPublisher.publish(any(PreApprovedRequestEvent.class))).thenReturn(Mono.empty());
+
+        StepVerifier.create(useCase.execute(new ProcessPreApprovedRequestCommand(
+                        "REF-1", "PRA-1", "USR-10", BigDecimal.ONE)))
+                .expectNext(result)
+                .verifyComplete();
+
+        ArgumentCaptor<PreApprovedRequestEvent> eventCaptor = ArgumentCaptor.forClass(PreApprovedRequestEvent.class);
+        verify(eventPublisher).publish(eventCaptor.capture());
+        PreApprovedRequestEvent event = eventCaptor.getValue();
+
+        assertThat(event.getRequestReference()).isEqualTo("REF-1");
+        assertThat(event.getPreApprovedId()).isEqualTo("PRA-1");
+        assertThat(event.getCustomerId()).isEqualTo("USR-10");
+        assertThat(event.getAmount()).isEqualByComparingTo("100.00");
+        assertThat(event.getStatus()).isEqualTo("APPROVED");
+        assertThat(event.getEventId()).isNotNull();
+        assertThat(event.getOccurredAt()).isNotNull();
+    }
+
+    @Test
+    void doesNotPublishEventWhenReplayed() {
+        PreApprovedUsage usage = usage();
+        UsageProcessingResult result = UsageProcessingResult.replayed(usage);
+        when(repository.process(any(UsageCommand.class))).thenReturn(Mono.just(result));
+
+        StepVerifier.create(useCase.execute(new ProcessPreApprovedRequestCommand(
+                        "REF-1", "PRA-1", "USR-10", BigDecimal.ONE)))
+                .expectNext(result)
+                .verifyComplete();
+
+        verify(eventPublisher, never()).publish(any(PreApprovedRequestEvent.class));
+    }
+
+    @Test
+    void doesNotPublishEventWhenConflict() {
+        PreApprovedUsage usage = usage();
+        UsageProcessingResult result = UsageProcessingResult.conflict(usage);
+        when(repository.process(any(UsageCommand.class))).thenReturn(Mono.just(result));
+
+        StepVerifier.create(useCase.execute(new ProcessPreApprovedRequestCommand(
+                        "REF-1", "PRA-1", "USR-10", BigDecimal.ONE)))
+                .expectNext(result)
+                .verifyComplete();
+
+        verify(eventPublisher, never()).publish(any(PreApprovedRequestEvent.class));
     }
 
     @Test
@@ -63,6 +125,8 @@ class ProcessPreApprovedRequestUseCaseTest {
                         "REF-1", "PRA-1", "USR-10", BigDecimal.ONE)))
                 .expectErrorMatches(throwable -> throwable == error)
                 .verify();
+        
+        verify(eventPublisher, never()).publish(any(PreApprovedRequestEvent.class));
     }
 
     private PreApprovedUsage usage() {

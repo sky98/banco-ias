@@ -20,6 +20,14 @@ spring:
       mode: ${SQL_INIT_MODE:always}
       schema-locations: ${SQL_INIT_SCHEMA_LOCATIONS:classpath:schema.sql}
       data-locations: ${SQL_INIT_DATA_LOCATIONS:classpath:data.sql}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+rabbitmq:
+  enabled: ${RABBITMQ_ENABLED:true}
 
 springdoc:
   swagger-ui.path: /swagger-ui.html

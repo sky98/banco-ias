@@ -26,7 +26,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import reactor.core.publisher.Flux;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration"
+})
 @Testcontainers(disabledWithoutDocker = true)
 class PreApprovedUsageIntegrationTest {
 
@@ -40,6 +42,7 @@ class PreApprovedUsageIntegrationTest {
                 POSTGRES.getHost(), POSTGRES.getMappedPort(5432), POSTGRES.getDatabaseName()));
         registry.add("spring.r2dbc.username", POSTGRES::getUsername);
         registry.add("spring.r2dbc.password", POSTGRES::getPassword);
+        registry.add("rabbitmq.enabled", () -> "false");
     }
 
     @Autowired
