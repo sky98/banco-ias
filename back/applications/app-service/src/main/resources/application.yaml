@@ -1,0 +1,44 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: bancoias
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.data.autoconfigure.metrics.DataRepositoryMetricsAutoConfiguration
+  devtools:
+    add-properties: false
+  r2dbc:
+    url: ${SPRING_R2DBC_URL:r2dbc:postgresql://localhost:5432/bancoias}
+    username: ${SPRING_R2DBC_USERNAME:bancoias}
+    password: ${SPRING_R2DBC_PASSWORD:bancoias}
+    pool:
+      enabled: true
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+
+springdoc:
+  swagger-ui.path: /swagger-ui.html
+  api-docs.path: /v3/api-docs
+  show-actuator: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+cors:
+  allowed-origins: "http://localhost:4200,http://localhost:8080,http://localhost:8081"
+
+logging:
+  level:
+    co.com.bancoias: INFO

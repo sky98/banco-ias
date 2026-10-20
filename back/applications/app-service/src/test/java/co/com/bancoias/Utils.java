@@ -1,0 +1,482 @@
+package co.com.bancoias;
+
+import lombok.extern.java.Log;
+
+import java.io.IOException;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.logging.Level;
+
+import static co.com.bancoias.Utils.Rule.CleanCodeAttribute.EFFICIENT;
+import static co.com.bancoias.Utils.Rule.CleanCodeAttribute.IDENTIFIABLE;
+import static co.com.bancoias.Utils.Rule.CleanCodeAttribute.TRUSTWORTHY;
+import static co.com.bancoias.Utils.Rule.Severity.HIGH;
+import static co.com.bancoias.Utils.Rule.Severity.LOW;
+import static co.com.bancoias.Utils.Rule.Severity.MEDIUM;
+import static co.com.bancoias.Utils.Rule.SoftwareQuality.MAINTAINABILITY;
+import static co.com.bancoias.Utils.Rule.SoftwareQuality.RELIABILITY;
+
+@Log
+public class Utils {
+    private static final Map<String, Rule> RULES = new HashMap<>();
+
+    static {
+        RULES.put(
+                "Rule_1.5",
+                Rule.from(
+                                "Rule_1.5",
+                                "Reactive flows must leverage AWS async clients",
+                                "Reactive flows should use AWS asynchronous clients to preserve non-blocking behavior" +
+                                        " and throughput guarantees.",
+                                EFFICIENT)
+                        .with(new Rule.Impact(MAINTAINABILITY, HIGH))
+                        .with(new Rule.Impact(RELIABILITY, MEDIUM)));
+        RULES.put(
+                "Rule_2.2",
+                Rule.from(
+                                "Rule_2.2",
+                                "Domain names avoid technology suffixes",
+                                "Domain classes should not be named with technology-specific suffixes to keep the " +
+                                        "ubiquitous language clear.",
+                                IDENTIFIABLE)
+                        .with(new Rule.Impact(MAINTAINABILITY, HIGH))
+                        .with(new Rule.Impact(RELIABILITY, LOW)));
+        RULES.put(
+                "Rule_2.4",
+                Rule.from(
+                                "Rule_2.4",
+                                "Domain names avoid technology labels",
+                                "Domain classes should not include technology names to prevent coupling domain " +
+                                        "terminology to infrastructure.",
+                                IDENTIFIABLE)
+                        .with(new Rule.Impact(MAINTAINABILITY, HIGH))
+                        .with(new Rule.Impact(RELIABILITY, LOW)));
+        RULES.put(
+                "Rule_2.5",
+                Rule.from(
+                                "Rule_2.5",
+                                "UseCase attributes must be final",
+                                "UseCase classes should declare only final attributes so concurrent executions cannot" +
+                                        " mutate shared state.",
+                                TRUSTWORTHY)
+                        .with(new Rule.Impact(RELIABILITY, HIGH))
+                        .with(new Rule.Impact(MAINTAINABILITY, MEDIUM)));
+        RULES.put(
+                "Rule_2.6",
+                Rule.from(
+                                "Rule_2.6",
+                                "Domain fields avoid technology names",
+                                "Fields in domain classes should not be named after technologies to keep intent " +
+                                        "focused on business meaning.",
+                                IDENTIFIABLE)
+                        .with(new Rule.Impact(MAINTAINABILITY, MEDIUM))
+                        .with(new Rule.Impact(RELIABILITY, LOW)));
+        RULES.put(
+                "Rule_2.7",
+                Rule.from(
+                                "Rule_2.7",
+                                "Bean attributes must be final",
+                                "Bean classes should use constructor injection with final attributes to avoid mutable" +
+                                        " shared state under concurrency.",
+                                TRUSTWORTHY)
+                        .with(new Rule.Impact(RELIABILITY, HIGH))
+                        .with(new Rule.Impact(MAINTAINABILITY, MEDIUM)));
+    }
+
+
+    public static ArchitectureRule parseToRule(String message) {
+        String ruleId = extractRuleId(message);
+        String description = extractRuleDescription(message);
+        ArchitectureRule rule = ArchitectureRule.from(ruleId, description);
+        String[] parts = message.split("\n");
+        boolean first = true;
+        for (String element : parts) {
+            if (first) {
+                first = false;
+                continue;
+            }
+            String className = resolveClassName(element);
+            int location = resolveLocation(element);
+            String locationIdx = resolveLocationIdx(element);
+            rule.with(ArchitectureRule.Location.from(className, ". " + element, location, locationIdx));
+        }
+        return rule;
+    }
+
+    private static String resolveLocationIdx(String violation) {
+        if (violation.startsWith("Class") || violation.startsWith("Field")) {
+            String partial = violation.substring(0, violation.indexOf(">"));
+            return partial.substring(partial.lastIndexOf('.') + 1);
+        }
+        if (violation.startsWith("Constructor") || violation.startsWith("Method")) {
+            String partial = violation.substring(violation.indexOf("<") + 1, violation.indexOf("("))
+                    .replace(".<init>", "");
+            return partial.substring(partial.lastIndexOf(".") + 1);
+        }
+        return "";
+    }
+
+    private static int resolveLocation(String violation) {
+        int startLocation = violation.lastIndexOf(".java:") + 6;
+        String location = violation.substring(startLocation, violation.indexOf(")", startLocation));
+        return Math.max(Integer.parseInt(location), 1);
+    }
+
+    private static String resolveClassName(String violation) {
+        if (violation.startsWith("Class")) {
+            return violation.substring(violation.indexOf("<") + 1, violation.indexOf(">")) + ".java";
+        }
+        String partial = violation.substring(violation.indexOf("<") + 1, violation.indexOf("("));
+        return partial.substring(0, partial.lastIndexOf(".")) + ".java";
+    }
+
+    public static int resolveFinalLocation(JavaFile file, ArchitectureRule.Location location) {
+        try {
+            Iterator<String> iterator = Files.readAllLines(Path.of(file.getModulePath(), file.getPath())).iterator();
+            int line = 1;
+            while (iterator.hasNext()) {
+                String current = iterator.next();
+                if (current.contains(location.getLocationIdx())) {
+                    return line;
+                }
+                line++;
+            }
+        } catch (Exception e) {
+            log.log(Level.INFO, "arch unit error", e);
+        }
+        return location.getLine();
+    }
+
+    public static String extractRuleId(String description) {
+        int start = description.indexOf('\'') + 1;
+        int end = description.indexOf(':', start);
+        return description.substring(start, end);
+    }
+
+    public static String extractRuleDescription(String description) {
+        int start = description.indexOf(':', description.indexOf('\'')) + 2;
+        int end = description.indexOf('\'', start);
+        return description.substring(start, end);
+    }
+
+    public static Map<String, JavaFile> findFiles() {
+        Map<String, JavaFile> files = new HashMap<>();
+        try {
+            Path appService = Paths.get("").toAbsolutePath();
+            if (appService.getParent().endsWith("applications")) {
+                Files.walkFileTree(
+                        appService.getParent().getParent(),
+                        EnumSet.noneOf(FileVisitOption.class),
+                        Integer.MAX_VALUE,
+                        new SimpleFileVisitor<>() {
+                            @Override
+                            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                                if (file.getFileName().toString().endsWith(".java")) {
+                                    final String absolutePathName = file.toAbsolutePath().toString();
+                                    int moduleIndex = absolutePathName.indexOf("src");
+                                    final String className = absolutePathName
+                                            .substring(absolutePathName.indexOf("java/") + 5)
+                                            .replaceAll("/", ".");
+                                    final String classPath = absolutePathName.substring(moduleIndex);
+                                    final String modulePath = absolutePathName.substring(0, moduleIndex);
+                                    files.put(className, new JavaFile(classPath, modulePath));
+                                }
+                                return FileVisitResult.CONTINUE;
+                            }
+
+                            @Override
+                            public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                                // Handle file visit failure here
+                                return FileVisitResult.CONTINUE;
+                            }
+                        }
+                );
+            }
+        } catch (Exception e) {
+            log.log(Level.INFO, e.getMessage());
+        }
+        return files;
+    }
+
+    public static class ArchitectureRule {
+        private final String ruleId;
+        private final String description;
+        private final List<Location> locations = new ArrayList<>();
+
+        public static ArchitectureRule from(String ruleId, String description) {
+            return new ArchitectureRule(ruleId, description);
+        }
+
+        private ArchitectureRule(String ruleId, String description) {
+            this.ruleId = ruleId;
+            this.description = description;
+        }
+
+        public ArchitectureRule with(Location location) {
+            this.locations.add(location);
+            return this;
+        }
+
+        public String getRuleId() {
+            return ruleId;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public List<Location> getLocations() {
+            return locations;
+        }
+
+        public static class Location {
+            private final String className;
+            private final String description;
+            private final int line;
+            private final String locationIdx;
+
+            public static Location from(String className, String description, int line, String locationIdx) {
+                return new Location(className, description, line, locationIdx);
+            }
+
+            private Location(String className, String description, int line, String locationIdx) {
+                this.className = className;
+                this.description = description;
+                this.line = line;
+                this.locationIdx = locationIdx;
+            }
+
+            public String getLocationIdx() {
+                return locationIdx;
+            }
+
+            public String getClassName() {
+                return className;
+            }
+
+            public String getDescription() {
+                return description;
+            }
+
+            public int getLine() {
+                return line;
+            }
+        }
+    }
+
+    public static class JavaFile {
+        private final String path;
+        private final String modulePath;
+
+        public static JavaFile from(String path, String modulePath) {
+            return new JavaFile(path, modulePath);
+        }
+
+        private JavaFile(String path, String modulePath) {
+            this.path = path;
+            this.modulePath = modulePath;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public String getModulePath() {
+            return modulePath;
+        }
+
+        @Override
+        public String toString() {
+            return "JavaFile{" +
+                    "path='" + path + '\'' +
+                    ", modulePath='" + modulePath + '\'' +
+                    '}';
+        }
+    }
+
+    public static class Rule {
+        private final String id;
+        private final String name;
+        private final String description;
+        private final String engineId = "scaffold";
+        private final CleanCodeAttribute cleanCodeAttribute;
+        private final List<Impact> impacts = new ArrayList<>();
+
+        public static Rule from(String id, String name, String description, CleanCodeAttribute cleanCodeAttribute) {
+            return new Rule(id, name, description, cleanCodeAttribute);
+        }
+
+        public Rule(String id, String name, String description, CleanCodeAttribute cleanCodeAttribute) {
+            this.id = id;
+            this.name = name;
+            this.description = description;
+            this.cleanCodeAttribute = cleanCodeAttribute;
+        }
+
+        public Rule with(Impact impact) {
+            this.impacts.add(impact);
+            return this;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public String getEngineId() {
+            return engineId;
+        }
+
+        public CleanCodeAttribute getCleanCodeAttribute() {
+            return cleanCodeAttribute;
+        }
+
+        public List<Impact> getImpacts() {
+            return impacts;
+        }
+
+        public enum SoftwareQuality {
+            SECURITY, RELIABILITY, MAINTAINABILITY
+        }
+
+        public enum Severity {
+            BLOCKER, HIGH, MEDIUM, LOW, INFO
+        }
+
+        public enum CleanCodeAttribute {
+            FORMATTED, CONVENTIONAL, IDENTIFIABLE, CLEAR, LOGICAL, COMPLETE, EFFICIENT, FOCUSED, DISTINCT, MODULAR,
+            TESTED, LAWFUL, TRUSTWORTHY, RESPECTFUL
+        }
+
+        public static class Impact {
+            private final SoftwareQuality softwareQuality;
+            private final Severity severity;
+
+            public Impact(SoftwareQuality softwareQuality, Severity severity) {
+                this.softwareQuality = softwareQuality;
+                this.severity = severity;
+            }
+
+            public SoftwareQuality getSoftwareQuality() {
+                return softwareQuality;
+            }
+
+            public Severity getSeverity() {
+                return severity;
+            }
+        }
+    }
+
+    public static class Issue {
+        private final String ruleId;
+        private final Location primaryLocation;
+        private final int effortMinutes;
+
+        public static Issue from(String ruleId, Location location, int effortMinutes) {
+            return new Issue(ruleId, location, effortMinutes);
+        }
+
+        private Issue(String ruleId, Location primaryLocation, int effortMinutes) {
+            this.ruleId = ruleId;
+            this.primaryLocation = primaryLocation;
+            this.effortMinutes = effortMinutes;
+        }
+
+        public String getRuleId() {
+            return ruleId;
+        }
+
+        public Location getPrimaryLocation() {
+            return primaryLocation;
+        }
+
+        public int getEffortMinutes() {
+            return effortMinutes;
+        }
+
+        public static class Location {
+            private final String message;
+            private final String filePath;
+            private final TextRange textRange;
+
+            public static Location from(String message, String filePath, TextRange textRange) {
+                return new Location(message, filePath, textRange);
+            }
+
+            private Location(String message, String filePath, TextRange textRange) {
+                this.message = message;
+                this.filePath = filePath;
+                this.textRange = textRange;
+            }
+
+            public String getMessage() {
+                return message;
+            }
+
+            public String getFilePath() {
+                return filePath;
+            }
+
+            public TextRange getTextRange() {
+                return textRange;
+            }
+        }
+
+        public static class TextRange {
+            private final int startLine;
+
+            public static TextRange from(int startLine) {
+                return new TextRange(startLine);
+            }
+
+            private TextRange(int startLine) {
+                this.startLine = startLine;
+            }
+
+            public int getStartLine() {
+                return startLine;
+            }
+
+        }
+    }
+
+    public static class IssuesReport {
+        private final ConcurrentLinkedQueue<Issue> issues = new ConcurrentLinkedQueue<>();
+        private final ConcurrentLinkedQueue<Rule> rules = new ConcurrentLinkedQueue<>();
+
+        public void add(Issue issue) {
+            this.issues.add(issue);
+            var rule = RULES.get(issue.getRuleId());
+            if (rule != null && !this.rules.contains(rule)) {
+                this.rules.add(rule);
+            }
+        }
+
+        public ConcurrentLinkedQueue<Issue> getIssues() {
+            return issues;
+        }
+
+        public ConcurrentLinkedQueue<Rule> getRules() {
+            return rules;
+        }
+    }
+}
