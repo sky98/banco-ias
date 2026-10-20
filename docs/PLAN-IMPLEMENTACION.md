@@ -1,7 +1,7 @@
 # Plan de implementación — Prueba técnica BancoIAS
 
 > Estado: **entrega completa del alcance obligatorio (RF01–RF07)**. Backend corregido y con
-> 50 tests en verde, frontend Angular con 12 tests, ADRs, arquitectura, uso de IA y trazabilidad
+> 50 tests en verde, frontend Angular con 26 tests, ADRs, arquitectura, uso de IA y trazabilidad
 > en `docs/`. Solo quedan opcionales: RabbitMQ y Flyway/Liquibase.
 
 ## Contexto
@@ -480,7 +480,7 @@ Backend terminado:
 
 Frontend y documentación:
 
-- Frontend Angular 22 (RF07) con formulario, resultado, tabla reciente y 12 tests.
+- Frontend Angular 22 (RF07) con formulario, resultado, tabla reciente y 26 tests.
 - `docs/arquitectura.md`, ADR-001 a ADR-008, `docs/uso-ia.md` y `docs/entrega.md`.
 
 Pendiente (opcional):

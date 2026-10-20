@@ -13,7 +13,7 @@ con su implementación, prueba y forma de verificación.
 | RF04 | Solicitudes simultáneas sin superar el cupo | `UPDATE ... WHERE available_amount >= :amount RETURNING` (ADR-003) | `PreApprovedUsageIntegrationTest.concurrentRequestsNeverOverdraw` | `make smoke`: 6 concurrentes, 5 aprobadas y 1 rechazada |
 | RF05 | Referencias repetidas idempotentes; conflicto controlado | `request_reference UNIQUE` + `PayloadHasher` (ADR-004); `200` replay y `409` | Replay, conflicto y `concurrentSameReferenceIsAppliedOnce` | `make smoke` (replay `200`, conflicto `409`); UI con la misma referencia |
 | RF06 | Consultar por `requestReference` y listar recientes | `GET /api/v1/preapproved-requests/{requestReference}` y `GET /api/v1/preapproved-requests?limit=` | `PreApprovedUsageHandlerTest`, `ListRecentPreApprovedRequestsUseCaseTest` | `curl` o la tabla de recientes en la UI |
-| RF07 | Interfaz Angular para registrar, ver resultado y consultar recientes | `front/` (Angular 22): formulario, tarjeta de resultado y tabla | `preapproved-requests.page.spec.ts` (7), `preapproved-usage.service.spec.ts` (3), `app.spec.ts` (2) | UI en `http://localhost:8081` |
+| RF07 | Interfaz Angular para registrar, ver resultado y consultar recientes | `front/` (Angular 22): formulario, tarjeta de resultado y tabla | `preapproved-requests.page.spec.ts` (21), `preapproved-usage.service.spec.ts` (3), `app.spec.ts` (2) | UI en `http://localhost:8081` |
 
 ## Restricciones técnicas y operativas
 
@@ -22,7 +22,7 @@ con su implementación, prueba y forma de verificación.
 | Backend Java con Spring Boot WebFlux | Java 21, Spring Boot 4.1.1, WebFlux, R2DBC (ADR-001, ADR-005) |
 | Frontend Angular | Angular 22 standalone, signals y reactive forms (`front/`) |
 | Persistencia de solicitudes procesadas | PostgreSQL 16 con `preapproved_usage` |
-| Pruebas automatizadas | 50 tests backend (JUnit/Testcontainers) y 12 tests frontend (Vitest) |
+| Pruebas automatizadas | 50 tests backend (JUnit/Testcontainers) y 26 tests frontend (Vitest) |
 | Instrucciones de ejecución | `README.md`, `make up`, `make test`, `make smoke` |
 | Registro de decisiones técnicas | `docs/decisiones/` (ADR-001 a ADR-008) y `docs/arquitectura.md` |
 | Registro de uso de IA | `docs/uso-ia.md` |
@@ -48,7 +48,7 @@ PDF, su ausencia no afecta la evaluación del alcance obligatorio.
 ## Cómo verificar la entrega
 
 ```bash
-make test       # backend (50 tests) + frontend (12 tests)
+make test       # backend (50 tests) + frontend (26 tests)
 make reset      # base limpia y stack completo
 make smoke      # regresión E2E sobre el backend
 # UI: http://localhost:8081

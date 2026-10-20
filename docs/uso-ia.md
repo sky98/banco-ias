@@ -17,14 +17,14 @@ en la terminal.
 | Persistencia | Borradores de SQL, adaptador y transacción reactiva | `UPDATE` condicional, búsqueda por referencia y detección de duplicados |
 | API | Router, handler, DTOs, errores y OpenAPI | Endpoints RF01/RF06 y contrato versionado |
 | Frontend Angular | Scaffold, servicio, formulario, resultado y tabla | RF07 integrado al backend |
-| Pruebas | Casos de handler, integración, concurrencia, frontend y smoke | 50 tests backend y 12 tests frontend |
+| Pruebas | Casos de handler, integración, concurrencia, frontend y smoke | 50 tests backend y 26 tests frontend |
 | Documentación | Borradores de arquitectura, ADRs y este registro | `docs/arquitectura.md`, `docs/decisiones/`, `docs/entrega.md` |
 
 ## Validación de resultados
 
 - Cada cambio de backend se ejecutó con la suite completa en Docker: **50 tests, 0
   fallos**.
-- El frontend se ejecutó con Vitest: **12 tests, 0 fallos**.
+- El frontend se ejecutó con Vitest: **26 tests, 0 fallos**.
 - Se levantó el stack completo con `make reset` y se verificó:
   - UI en `http://localhost:8081`.
   - Proxy `/api` de Nginx hacia `back:8080`.
@@ -46,7 +46,7 @@ en la terminal.
 - **BlockHound:** el test de OpenAPI falló inicialmente porque Springdoc lee el
   classpath. Se agregó una allow-list acotada a la lectura de metadatos en pruebas.
 - **Pruebas:** se ajustó el número esperado de tests al alcance final (50 backend y
-  12 frontend) y se verificó cada suite antes de documentar.
+  26 frontend) y se verificó cada suite antes de documentar.
 - **Frontend:** se mantuvo una página con formulario, resultado y tabla en lugar de
   dividir en muchos componentes, para conservar el alcance acotado y la claridad.
 - **RabbitMQ:** se descartó su implementación y se documentó la decisión en

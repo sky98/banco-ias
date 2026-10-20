@@ -182,7 +182,7 @@ Backend (50 tests), en un contenedor con JDK 21 y Docker disponible para Testcon
 - Idempotencia, conflictos, rechazos, concurrencia y contrato OpenAPI.
 - ArchUnit para reglas de arquitectura.
 
-Frontend (12 tests), en un contenedor Node 24 con Vitest:
+Frontend (26 tests), en un contenedor Node 24 con Vitest:
 
 - Servicio HTTP con `HttpTestingController`.
 - Página: defaults, envío exitoso, replay, conflicto `409`, validación `400`, tabla y
