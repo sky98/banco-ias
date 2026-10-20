@@ -13,11 +13,11 @@ import co.com.bancoias.r2dbc.entity.PreApprovedEntity;
 import co.com.bancoias.r2dbc.entity.PreApprovedUsageEntity;
 import co.com.bancoias.r2dbc.repository.PreApprovedR2dbcRepository;
 import co.com.bancoias.r2dbc.repository.PreApprovedUsageR2dbcRepository;
+import io.r2dbc.spi.R2dbcException;
 import io.r2dbc.spi.Row;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Locale;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,6 +36,7 @@ public class PreApprovedUsageR2dbcAdapter implements PreApprovedUsageRepository 
                    payload_hash, processed_at, remaining_amount
             FROM preapproved_usage
             """;
+    private static final String PG_UNIQUE_VIOLATION = "23505";
 
     private final DatabaseClient databaseClient;
     private final PreApprovedUsageR2dbcRepository usageRepository;
@@ -66,7 +67,7 @@ public class PreApprovedUsageR2dbcAdapter implements PreApprovedUsageRepository 
         return transactionalOperator.execute(status -> processInTransaction(command))
                 .single()
                 .onErrorResume(DataIntegrityViolationException.class, error -> {
-                    if (!isDuplicateReference(error)) {
+                    if (!isUniqueViolation(error)) {
                         return Mono.error(error);
                     }
                     return findByRequestReference(command.requestReference())
@@ -187,8 +188,15 @@ public class PreApprovedUsageR2dbcAdapter implements PreApprovedUsageRepository 
                 .build();
     }
 
-    private boolean isDuplicateReference(DataIntegrityViolationException error) {
-        String message = error.getMessage();
-        return message != null && message.toLowerCase(Locale.ROOT).contains("duplicate key");
+    static boolean isUniqueViolation(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof R2dbcException r2dbcException
+                    && PG_UNIQUE_VIOLATION.equals(r2dbcException.getSqlState())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }
