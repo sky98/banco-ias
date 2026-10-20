@@ -17,9 +17,9 @@ spring:
       enabled: true
   sql:
     init:
-      mode: always
-      schema-locations: classpath:schema.sql
-      data-locations: classpath:data.sql
+      mode: ${SQL_INIT_MODE:always}
+      schema-locations: ${SQL_INIT_SCHEMA_LOCATIONS:classpath:schema.sql}
+      data-locations: ${SQL_INIT_DATA_LOCATIONS:classpath:data.sql}
 
 springdoc:
   swagger-ui.path: /swagger-ui.html
@@ -37,7 +37,7 @@ management:
         enabled: true
 
 cors:
-  allowed-origins: "http://localhost:4200,http://localhost:8080,http://localhost:8081"
+  allowed-origins: "${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:8080,http://localhost:8081}"
 
 logging:
   level:

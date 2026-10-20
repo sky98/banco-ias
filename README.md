@@ -55,6 +55,20 @@ docker compose down -v
 La API queda en `http://localhost:8080` y Swagger en
 `http://localhost:8080/swagger-ui.html`.
 
+Para Docker Compose, copiar `.env.example` a `.env` y ajustar los valores. Variables
+principales:
+
+| Variable | Default | Uso |
+|---|---|---|
+| `SERVER_PORT` | `8080` | Puerto HTTP |
+| `SPRING_R2DBC_URL` | `r2dbc:postgresql://localhost:5432/bancoias` | Conexión R2DBC |
+| `SPRING_R2DBC_USERNAME` | `bancoias` | Usuario de base de datos |
+| `SPRING_R2DBC_PASSWORD` | `bancoias` | Contraseña de base de datos |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:4200,http://localhost:8080,http://localhost:8081` | Orígenes permitidos, separados por coma |
+| `SQL_INIT_MODE` | `always` | Modo de inicialización SQL |
+| `SQL_INIT_SCHEMA_LOCATIONS` | `classpath:schema.sql` | Script de esquema |
+| `SQL_INIT_DATA_LOCATIONS` | `classpath:data.sql` | Script de datos semilla |
+
 ## API
 
 ```text

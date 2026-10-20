@@ -25,6 +25,10 @@ services:
       SPRING_R2DBC_URL: r2dbc:postgresql://db:5432/${POSTGRES_DB:-bancoias}
       SPRING_R2DBC_USERNAME: ${POSTGRES_USER:-bancoias}
       SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD:-bancoias}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:4200,http://localhost:8080,http://localhost:8081}
+      SQL_INIT_MODE: ${SQL_INIT_MODE:-always}
+      SQL_INIT_SCHEMA_LOCATIONS: ${SQL_INIT_SCHEMA_LOCATIONS:-classpath:schema.sql}
+      SQL_INIT_DATA_LOCATIONS: ${SQL_INIT_DATA_LOCATIONS:-classpath:data.sql}
     depends_on:
       db:
         condition: service_healthy
