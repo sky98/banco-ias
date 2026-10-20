@@ -1,14 +1,14 @@
-# ADR-006: RabbitMQ fuera del alcance obligatorio
+# ADR-006: RabbitMQ para publicación de eventos
 
 ## Estado
 
-Aceptado
+Implementado
 
 ## Contexto
 
 El PDF ofrece un punto opcional: publicar un evento cuando una solicitud es
 autorizada para que otros sistemas reaccionen. El alcance obligatorio (RF01–RF07)
-no depende de mensajería y el esfuerzo estimado es limitado.
+no depende de mensajería, pero se decidió implementarlo como valor agregado.
 
 ## Opciones Consideradas
 
@@ -22,34 +22,83 @@ no depende de mensajería y el esfuerzo estimado es limitado.
 
 ## Decisión
 
-Se elige **Opción 3: documentar el descarte** y priorizar el alcance obligatorio.
+Se elige **Opción 1: implementar RabbitMQ** con publicación directa de eventos
+después del commit exitoso de la transacción.
 
 ## Justificación Detallada
 
-El punto opcional no afecta la evaluación del alcance obligatorio. Publicar un
-evento sin outbox o sin política de reintentos daría una falsa sensación de
-confiabilidad. La decisión correcta para una futura iteración es un patrón outbox
-transaccional con un relay y consumidores idempotentes, no una publicación directa
-después del commit.
+La implementación de RabbitMQ agrega valor demostrativo al proyecto. Se publican
+dos tipos de eventos:
+- `PRE_APPROVED_REQUEST_APPROVED`: cuando una solicitud es aprobada
+- `PRE_APPROVED_REQUEST_REJECTED`: cuando una solicitud es rechazada
+
+Los eventos NO se publican para:
+- Replays (solicitudes idempotentes)
+- Conflictos (referencia duplicada con datos diferentes)
+
+Esto asegura que los eventos representen cambios reales en el estado del sistema.
+
+### Características de la implementación:
+
+1. **Publicación después del commit**: Los eventos se publican solo después de que
+   la transacción se haya confirmado exitosamente.
+2. **Tolerancia a fallos**: Si RabbitMQ no está disponible, el evento se registra
+   en logs pero no falla la operación principal (fallback a NoOp).
+3. **Exchange tipo Topic**: Permite routing flexible por tipo de evento.
+4. **Serialización JSON**: Los eventos se serializan como JSON para interoperabilidad.
+
+### Configuración:
+
+- Exchange: `preapproved-requests-exchange` (topic)
+- Queue: `preapproved-requests-queue`
+- Routing keys:
+  - `preapproved.request.approved`
+  - `preapproved.request.rejected`
 
 ## Consecuencias
 
 ### Positivas
 
-- Se concentra el esfuerzo en RF01–RF07 y en la calidad de la entrega.
-- No se introduce infraestructura sin pruebas de fallo.
+- Demuestra integración con sistemas de mensajería.
+- Permite notificar a otros sistemas sobre cambios en el estado de solicitudes.
+- Arquitectura desacoplada mediante eventos.
+- Los consumidores pueden procesar eventos de forma asíncrona.
 
 ### Negativas
 
-- No hay demostración de mensajería en esta entrega.
+- Requiere infraestructura adicional (RabbitMQ).
+- Sin outbox pattern, hay riesgo de pérdida de eventos si falla la publicación.
+- Los consumidores deben ser idempotentes.
 
 ### Riesgos
 
-- Si se requiere el opcional, habrá que diseñar outbox y contratos. Mitigación:
-  el evento de negocio queda acotado a la solicitud autorizada y el adaptador de
-  persistencia ya es el punto natural para un outbox futuro.
+- **Pérdida de eventos**: Si RabbitMQ falla después del commit pero antes de la
+  publicación, el evento se pierde. Mitigación futura: implementar outbox pattern.
+- **Duplicación de eventos**: Si la publicación falla parcialmente, podría haber
+  duplicación. Mitigación: usar eventId único en cada evento.
+
+## Implementación
+
+### Módulos creados:
+
+- `back/infrastructure/driven-adapters/rabbitmq-sender/`: Adapter para RabbitMQ
+- `back/domain/model/.../event/`: Definición de eventos (EventType, PreApprovedRequestEvent)
+- `back/domain/model/.../gateways/PreApprovedRequestEventPublisher.java`: Gateway
+
+### Flujo:
+
+1. `ProcessPreApprovedRequestUseCase` procesa la solicitud
+2. Si el resultado es `CREATED` (no replay ni conflict), publica el evento
+3. El evento se publica a RabbitMQ con routing key según el tipo
+4. Si falla, se registra en logs pero no falla la operación
+
+### Configuración:
+
+- Variable `RABBITMQ_ENABLED` para habilitar/deshabilitar en diferentes ambientes
+- En tests se usa `NoOpPreApprovedRequestEventPublisherAdapter`
 
 ## Referencias
 
 - `docs/PLAN-IMPLEMENTACION.md` (punto opcional)
 - PDF de la prueba técnica, sección 9
+- Commit: `9c051e8` - Implementación de RabbitMQ

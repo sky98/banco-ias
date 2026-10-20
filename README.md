@@ -9,7 +9,8 @@ consistencia del cupo bajo concurrencia y en la idempotencia por referencia.
 - Backend: Java 21, Spring Boot 4.1.1 / WebFlux, R2DBC PostgreSQL, Gradle 9.8.0 (wrapper),
   scaffold Bancolombia Clean Architecture 4.7.4, Springdoc/OpenAPI, Actuator y ArchUnit
 - Frontend: Angular 22 (standalone, signals, reactive forms), Vitest, Node 24 en build
-- Infraestructura: PostgreSQL 16, Nginx (sirve la SPA y hace proxy de `/api`), Docker Compose
+- Mensajería: RabbitMQ 3 (publicación de eventos de solicitudes aprobadas/rechazadas)
+- Infraestructura: PostgreSQL 16, RabbitMQ 3, Nginx (sirve la SPA y hace proxy de `/api`), Docker Compose
 - Pruebas: JUnit 5, Reactor Test, Mockito, Testcontainers y Vitest
 
 ## Estructura
@@ -21,6 +22,7 @@ bancoias/
 │   ├── domain/model
 │   ├── domain/usecase
 │   ├── infrastructure/driven-adapters/r2dbc-postgresql
+│   ├── infrastructure/driven-adapters/rabbitmq-sender
 │   ├── infrastructure/entry-points/reactive-web
 │   └── deployment/Dockerfile
 ├── front/                      Angular 22 + Nginx (Dockerfile, nginx.conf)
@@ -60,6 +62,7 @@ Puertos:
 - Interfaz Angular: `http://localhost:8081`
 - API: `http://localhost:8080`; Swagger en `http://localhost:8080/swagger-ui.html`
 - PostgreSQL: `localhost:5432`
+- RabbitMQ: `localhost:5672` (AMQP), `localhost:15672` (Management UI)
 
 La interfaz permite registrar una solicitud (valores demo `USR-10`, `PRA-1001`,
 `REF-001`, `600000`), ver el resultado (estado, motivo, cupo restante, replay o
@@ -79,6 +82,11 @@ principales:
 | `SQL_INIT_MODE` | `always` | Modo de inicialización SQL |
 | `SQL_INIT_SCHEMA_LOCATIONS` | `classpath:schema.sql` | Script de esquema |
 | `SQL_INIT_DATA_LOCATIONS` | `classpath:data.sql` | Script de datos semilla |
+| `RABBITMQ_USERNAME` | `guest` | Usuario de RabbitMQ |
+| `RABBITMQ_PASSWORD` | `guest` | Contraseña de RabbitMQ |
+| `RABBITMQ_PORT` | `5672` | Puerto AMQP de RabbitMQ |
+| `RABBITMQ_MANAGEMENT_PORT` | `15672` | Puerto de la Management UI de RabbitMQ |
+| `RABBITMQ_ENABLED` | `true` | Habilitar/deshabilitar publicación de eventos |
 
 ## API
 
@@ -157,6 +165,46 @@ RETURNING available_amount;
 - Una solicitud rechazada se persiste con su motivo y no descuenta cupo.
 - Los montos menores o iguales a cero se persisten como `REJECTED` con
   `INVALID_AMOUNT`. Un payload malformado responde `400` y no se persiste.
+
+## Eventos RabbitMQ
+
+El sistema publica eventos a RabbitMQ cuando ocurren cambios reales en el estado:
+
+**Eventos publicados:**
+- `PRE_APPROVED_REQUEST_APPROVED`: cuando una solicitud es aprobada y se descuenta cupo
+- `PRE_APPROVED_REQUEST_REJECTED`: cuando una solicitud es rechazada (cupo insuficiente, preaprobado no encontrado, etc.)
+
+**Eventos NO publicados:**
+- Replays (solicitudes idempotentes con la misma referencia y datos)
+- Conflictos (referencia duplicada con datos diferentes)
+
+**Configuración:**
+- Exchange: `preapproved-requests-exchange` (tipo topic)
+- Queue: `preapproved-requests-queue`
+- Routing keys:
+  - `preapproved.request.approved`
+  - `preapproved.request.rejected`
+
+**Estructura del evento:**
+```json
+{
+  "eventId": "uuid-unico",
+  "eventType": "PRE_APPROVED_REQUEST_APPROVED",
+  "requestReference": "REF-001",
+  "preApprovedId": "PRA-1001",
+  "customerId": "USR-10",
+  "amount": 600000.00,
+  "status": "APPROVED",
+  "reason": null,
+  "remainingAmount": 400000.00,
+  "occurredAt": "2026-10-20T05:00:00Z"
+}
+```
+
+**Tolerancia a fallos:**
+- Los eventos se publican después del commit exitoso de la transacción
+- Si RabbitMQ no está disponible, el evento se registra en logs pero no falla la operación principal
+- En ambientes donde RabbitMQ no está disponible, se puede deshabilitar con `RABBITMQ_ENABLED=false`
 
 ## Datos semilla
 
