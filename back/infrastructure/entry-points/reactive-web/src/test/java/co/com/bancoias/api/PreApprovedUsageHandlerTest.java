@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import co.com.bancoias.api.error.ApiExceptionHandler;
+import co.com.bancoias.api.validation.ValidadorRequest;
 import co.com.bancoias.model.preapproved.PreApproved;
 import co.com.bancoias.model.preapproved.PreApprovedStatus;
 import co.com.bancoias.model.preapprovedusage.PreApprovedUsage;
@@ -25,11 +26,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.validation.Validator;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @ExtendWith(MockitoExtension.class)
 class PreApprovedUsageHandlerTest {
+
+    private static final Validator VALIDATOR = localValidator();
 
     @Mock
     private ProcessPreApprovedRequestUseCase processUseCase;
@@ -43,12 +48,22 @@ class PreApprovedUsageHandlerTest {
     @Mock
     private GetPreApprovedUseCase getPreApprovedUseCase;
 
+    private static Validator localValidator() {
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
+        return validator;
+    }
+
     private WebTestClient client;
 
     @BeforeEach
     void setUp() {
         PreApprovedUsageHandler handler = new PreApprovedUsageHandler(
-                processUseCase, getUsageUseCase, listUseCase, getPreApprovedUseCase);
+                processUseCase,
+                getUsageUseCase,
+                listUseCase,
+                getPreApprovedUseCase,
+                new ValidadorRequest(VALIDATOR));
         client = WebTestClient.bindToRouterFunction(
                         new RouterRest().routerFunction(handler, new ApiExceptionHandler()))
                 .build();

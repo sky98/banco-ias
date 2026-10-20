@@ -160,7 +160,7 @@ saludable. El healthcheck del backend consulta `/actuator/health`.
 | Idempotencia | `request_reference` único + hash canónico | Tests de replay/conflicto y concurrencia |
 | Reactividad | WebFlux + R2DBC, sin bloqueo en el event loop | BlockHound en pruebas |
 | Contrato | OpenAPI anotado + YAML estático | `documentsOpenApiContract` |
-| Validación | Longitudes 80/40/40; monto 2 decimales y 17 enteros | Handler tests y smoke test |
+| Validación | Bean Validation: longitudes 80/40/40; monto 2 decimales y 17 enteros | Handler tests y smoke test |
 | Operación | Compose, healthchecks, variables de entorno | `make up`, `make smoke` |
 | Trazabilidad | Commits por fase, ADRs, uso de IA | `git log`, `docs/decisiones/`, `docs/uso-ia.md` |
 
@@ -174,3 +174,4 @@ saludable. El healthcheck del backend consulta `/actuator/health`.
 - [ADR-006](decisiones/ADR-006-rabbitmq-opcional.md)
 - [ADR-007](decisiones/ADR-007-validacion-payload.md)
 - [ADR-008](decisiones/ADR-008-openapi-contrato.md)
+- [ADR-009](decisiones/ADR-009-estilo-funcional-sin-if.md)

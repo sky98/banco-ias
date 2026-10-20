@@ -481,7 +481,7 @@ Backend terminado:
 Frontend y documentación:
 
 - Frontend Angular 22 (RF07) con formulario, resultado, tabla reciente y 26 tests.
-- `docs/arquitectura.md`, ADR-001 a ADR-008, `docs/uso-ia.md` y `docs/entrega.md`.
+- `docs/arquitectura.md`, ADR-001 a ADR-009, `docs/uso-ia.md` y `docs/entrega.md`.
 
 Pendiente (opcional):
 
@@ -500,6 +500,8 @@ Pendiente (opcional):
 - Validación de longitudes (80/40/40) y de `amount` (2 decimales, 17 dígitos enteros).
 - Duplicados detectados por SQLState `23505`, no por texto del driver.
 - SQL init y CORS externalizados por variables de entorno.
+- Refactor sin `if` en código principal: Bean Validation, `Optional`, `switch`
+  exhaustivo y operadores reactivos (ADR-009).
 - Suite backend ampliada a 50 tests y smoke test con casos `400`.
 - Modelo renombrado a `PreApprovedUsage` para cumplir la regla del scaffold.
 - Transacción reactiva consumida con `single()` para garantizar el commit.

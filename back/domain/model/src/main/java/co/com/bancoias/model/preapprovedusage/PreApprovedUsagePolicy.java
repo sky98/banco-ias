@@ -12,23 +12,41 @@ public final class PreApprovedUsagePolicy {
 
     public static Optional<RejectionReason> rejectionReason(
             Optional<PreApproved> preApproved, BigDecimal amount, String customerId) {
-        if (amount == null || amount.signum() <= 0) {
-            return Optional.of(RejectionReason.INVALID_AMOUNT);
-        }
-        if (preApproved.isEmpty()) {
-            return Optional.of(RejectionReason.PREAPPROVED_NOT_FOUND);
-        }
+        return invalidAmount(amount)
+                .or(() -> preApprovedMissing(preApproved))
+                .or(() -> customerMismatch(preApproved, customerId))
+                .or(() -> blocked(preApproved))
+                .or(() -> insufficientQuota(preApproved, amount));
+    }
 
-        PreApproved current = preApproved.get();
-        if (!current.getCustomerId().equals(customerId)) {
-            return Optional.of(RejectionReason.CUSTOMER_MISMATCH);
-        }
-        if (current.getStatus() != PreApprovedStatus.ACTIVE) {
-            return Optional.of(RejectionReason.PREAPPROVED_BLOCKED);
-        }
-        if (current.getAvailableAmount().compareTo(amount) < 0) {
-            return Optional.of(RejectionReason.INSUFFICIENT_QUOTA);
-        }
-        return Optional.empty();
+    private static Optional<RejectionReason> invalidAmount(BigDecimal amount) {
+        return Optional.of(RejectionReason.INVALID_AMOUNT)
+                .filter(ignored -> amount == null || amount.signum() <= 0);
+    }
+
+    private static Optional<RejectionReason> preApprovedMissing(
+            Optional<PreApproved> preApproved) {
+        return Optional.of(RejectionReason.PREAPPROVED_NOT_FOUND)
+                .filter(ignored -> preApproved.isEmpty());
+    }
+
+    private static Optional<RejectionReason> customerMismatch(
+            Optional<PreApproved> preApproved, String customerId) {
+        return preApproved
+                .filter(current -> !current.getCustomerId().equals(customerId))
+                .map(current -> RejectionReason.CUSTOMER_MISMATCH);
+    }
+
+    private static Optional<RejectionReason> blocked(Optional<PreApproved> preApproved) {
+        return preApproved
+                .filter(current -> current.getStatus() != PreApprovedStatus.ACTIVE)
+                .map(current -> RejectionReason.PREAPPROVED_BLOCKED);
+    }
+
+    private static Optional<RejectionReason> insufficientQuota(
+            Optional<PreApproved> preApproved, BigDecimal amount) {
+        return preApproved
+                .filter(current -> current.getAvailableAmount().compareTo(amount) < 0)
+                .map(current -> RejectionReason.INSUFFICIENT_QUOTA);
     }
 }

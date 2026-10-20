@@ -291,21 +291,25 @@ components:
           description: Referencia única de la solicitud
           example: REF-001
           maxLength: 80
+          minLength: 0
         preApprovedId:
           type: string
           description: Identificador del preaprobado
           example: PRA-1001
           maxLength: 40
+          minLength: 0
         customerId:
           type: string
           description: Identificador del cliente
           example: USR-10
           maxLength: 40
+          minLength: 0
         amount:
           type: number
           description: Monto solicitado; máximo 2 decimales y 17 dígitos enteros
           example: 600000.0
       required:
+      - amount
       - customerId
       - preApprovedId
       - requestReference

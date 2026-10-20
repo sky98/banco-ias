@@ -18,7 +18,9 @@ import io.r2dbc.spi.Row;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.r2dbc.core.DatabaseClient;
@@ -66,20 +68,17 @@ public class PreApprovedUsageR2dbcAdapter implements PreApprovedUsageRepository 
     private Mono<UsageProcessingResult> processNew(UsageCommand command) {
         return transactionalOperator.execute(status -> processInTransaction(command))
                 .single()
-                .onErrorResume(DataIntegrityViolationException.class, error -> {
-                    if (!isUniqueViolation(error)) {
-                        return Mono.error(error);
-                    }
-                    return findByRequestReference(command.requestReference())
-                            .map(existing -> resultForExisting(existing, command));
-                });
+                .onErrorResume(DataIntegrityViolationException.class, error ->
+                        Mono.just(error)
+                                .filter(PreApprovedUsageR2dbcAdapter::isUniqueViolation)
+                                .flatMap(ignored -> findByRequestReference(command.requestReference()))
+                                .map(existing -> resultForExisting(existing, command))
+                                .switchIfEmpty(Mono.error(error)));
     }
 
     private Mono<UsageProcessingResult> processInTransaction(UsageCommand command) {
-        if (command.amount() == null) {
-            return reject(command);
-        }
-        return decrementIfAvailable(command)
+        return Mono.justOrEmpty(command.amount())
+                .flatMap(ignored -> decrementIfAvailable(command))
                 .flatMap(remaining -> saveUsage(command, UsageStatus.APPROVED, null, remaining)
                         .map(UsageProcessingResult::created))
                 .switchIfEmpty(Mono.defer(() -> reject(command)));
@@ -141,10 +140,9 @@ public class PreApprovedUsageR2dbcAdapter implements PreApprovedUsageRepository 
     }
 
     private UsageProcessingResult resultForExisting(PreApprovedUsage existing, UsageCommand command) {
-        if (existing.getPayloadHash().equals(command.payloadHash())) {
-            return UsageProcessingResult.replayed(existing);
-        }
-        return UsageProcessingResult.conflict(existing);
+        return existing.getPayloadHash().equals(command.payloadHash())
+                ? UsageProcessingResult.replayed(existing)
+                : UsageProcessingResult.conflict(existing);
     }
 
     private PreApproved toDomain(PreApprovedEntity entity) {
@@ -189,14 +187,9 @@ public class PreApprovedUsageR2dbcAdapter implements PreApprovedUsageRepository 
     }
 
     static boolean isUniqueViolation(Throwable error) {
-        Throwable current = error;
-        while (current != null) {
-            if (current instanceof R2dbcException r2dbcException
-                    && PG_UNIQUE_VIOLATION.equals(r2dbcException.getSqlState())) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
+        return Stream.iterate(error, Objects::nonNull, Throwable::getCause)
+                .filter(R2dbcException.class::isInstance)
+                .map(R2dbcException.class::cast)
+                .anyMatch(exception -> PG_UNIQUE_VIOLATION.equals(exception.getSqlState()));
     }
 }

@@ -13,3 +13,4 @@ opciones, decisión, consecuencias y evidencia de validación.
 | [ADR-006](ADR-006-rabbitmq-opcional.md) | RabbitMQ fuera del alcance obligatorio | Aceptado |
 | [ADR-007](ADR-007-validacion-payload.md) | Validación estricta de longitudes y escala | Aceptado |
 | [ADR-008](ADR-008-openapi-contrato.md) | OpenAPI anotado y contrato estático | Aceptado |
+| [ADR-009](ADR-009-estilo-funcional-sin-if.md) | Estilo funcional sin `if` en el código principal | Aceptado |

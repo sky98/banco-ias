@@ -5,14 +5,13 @@ import co.com.bancoias.api.dto.PreApprovedUsageResponse;
 import co.com.bancoias.api.error.ReferenceConflictException;
 import co.com.bancoias.api.error.RequestValidationException;
 import co.com.bancoias.api.mapper.PreApprovedUsageMapper;
+import co.com.bancoias.api.validation.ValidadorRequest;
+import co.com.bancoias.model.preapprovedusage.UsageProcessingResult;
 import co.com.bancoias.usecase.getpreapproved.GetPreApprovedUseCase;
 import co.com.bancoias.usecase.getpreapprovedrequest.GetPreApprovedRequestUseCase;
 import co.com.bancoias.usecase.listrecentpreapprovedrequests.ListRecentPreApprovedRequestsUseCase;
 import co.com.bancoias.usecase.processpreapprovedrequest.ProcessPreApprovedRequestCommand;
 import co.com.bancoias.usecase.processpreapprovedrequest.ProcessPreApprovedRequestUseCase;
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -26,36 +25,19 @@ import reactor.core.publisher.Mono;
 public class PreApprovedUsageHandler {
 
     private static final int DEFAULT_LIMIT = 20;
-    private static final int MAX_REQUEST_REFERENCE_LENGTH = 80;
-    private static final int MAX_ID_LENGTH = 40;
-    private static final int MAX_AMOUNT_DECIMALS = 2;
-    private static final int MAX_AMOUNT_INTEGER_DIGITS = 17;
 
     private final ProcessPreApprovedRequestUseCase processUseCase;
     private final GetPreApprovedRequestUseCase getUsageUseCase;
     private final ListRecentPreApprovedRequestsUseCase listUseCase;
     private final GetPreApprovedUseCase getPreApprovedUseCase;
+    private final ValidadorRequest validator;
 
     public Mono<ServerResponse> create(ServerRequest request) {
         return request.bodyToMono(CreatePreApprovedUsageRequest.class)
                 .switchIfEmpty(Mono.error(new RequestValidationException("El cuerpo es obligatorio")))
-                .flatMap(body -> validate(body).thenReturn(body))
-                .flatMap(body -> processUseCase.execute(new ProcessPreApprovedRequestCommand(
-                        body.requestReference(),
-                        body.preApprovedId(),
-                        body.customerId(),
-                        body.amount())))
-                .flatMap(result -> {
-                    PreApprovedUsageResponse response =
-                            PreApprovedUsageMapper.toResponse(result.usage(), result.replayed());
-                    if (result.conflict()) {
-                        return Mono.error(new ReferenceConflictException(response));
-                    }
-                    HttpStatus status = result.replayed() ? HttpStatus.OK : HttpStatus.CREATED;
-                    return ServerResponse.status(status)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .bodyValue(response);
-                });
+                .flatMap(validator::validar)
+                .flatMap(this::process)
+                .flatMap(this::toResponse);
     }
 
     public Mono<ServerResponse> getByReference(ServerRequest request) {
@@ -88,41 +70,29 @@ public class PreApprovedUsageHandler {
                 .switchIfEmpty(ServerResponse.notFound().build());
     }
 
-    private Mono<Void> validate(CreatePreApprovedUsageRequest body) {
-        List<String> errors = new ArrayList<>();
-        if (isBlank(body.requestReference())) {
-            errors.add("requestReference: no debe estar vacío");
-        } else if (body.requestReference().trim().length() > MAX_REQUEST_REFERENCE_LENGTH) {
-            errors.add("requestReference: máximo " + MAX_REQUEST_REFERENCE_LENGTH + " caracteres");
-        }
-        if (isBlank(body.preApprovedId())) {
-            errors.add("preApprovedId: no debe estar vacío");
-        } else if (body.preApprovedId().trim().length() > MAX_ID_LENGTH) {
-            errors.add("preApprovedId: máximo " + MAX_ID_LENGTH + " caracteres");
-        }
-        if (isBlank(body.customerId())) {
-            errors.add("customerId: no debe estar vacío");
-        } else if (body.customerId().trim().length() > MAX_ID_LENGTH) {
-            errors.add("customerId: máximo " + MAX_ID_LENGTH + " caracteres");
-        }
-        if (body.amount() == null) {
-            errors.add("amount: no debe ser nulo");
-        } else {
-            BigDecimal normalized = body.amount().stripTrailingZeros();
-            if (normalized.scale() > MAX_AMOUNT_DECIMALS) {
-                errors.add("amount: máximo " + MAX_AMOUNT_DECIMALS + " decimales");
-            } else if (normalized.precision() - normalized.scale() > MAX_AMOUNT_INTEGER_DIGITS) {
-                errors.add("amount: supera el máximo permitido");
-            }
-        }
-        if (errors.isEmpty()) {
-            return Mono.empty();
-        }
-        return Mono.error(new RequestValidationException(String.join("; ", errors)));
+    private Mono<UsageProcessingResult> process(CreatePreApprovedUsageRequest body) {
+        return processUseCase.execute(new ProcessPreApprovedRequestCommand(
+                body.requestReference(),
+                body.preApprovedId(),
+                body.customerId(),
+                body.amount()));
     }
 
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
+    private Mono<ServerResponse> toResponse(UsageProcessingResult result) {
+        PreApprovedUsageResponse response =
+                PreApprovedUsageMapper.toResponse(result.usage(), result.replayed());
+
+        return switch (result.outcome()) {
+            case CONFLICT -> Mono.error(new ReferenceConflictException(response));
+            case REPLAYED -> json(HttpStatus.OK, response);
+            case CREATED -> json(HttpStatus.CREATED, response);
+        };
+    }
+
+    private Mono<ServerResponse> json(HttpStatus status, PreApprovedUsageResponse response) {
+        return ServerResponse.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(response);
     }
 
     private int parseLimit(ServerRequest request) {

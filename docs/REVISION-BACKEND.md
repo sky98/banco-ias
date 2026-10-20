@@ -55,9 +55,9 @@ Cobertura por módulo (Jacoco, sin reporte agregado):
 - El dominio no depende de frameworks; los casos de uso solo usan puertos.
 - `ArchitectureTest` valida 6 reglas y pasa.
 - Se usó `PreApprovedUsage` en lugar de sufijos `Request`/`Response` para cumplir la convención del scaffold.
-- Sin bloqueo en el event loop: validación manual en el handler, exclusión de métricas de
-  repositorios y allow-list de `SecureRandom` más la lectura de classpath de Springdoc
-  durante `/v3/api-docs` en pruebas.
+- Sin bloqueo en el event loop: validación declarativa con Bean Validation y
+  `ValidadorRequest`, exclusión de métricas de repositorios y allow-list de
+  `SecureRandom` más la lectura de classpath de Springdoc durante `/v3/api-docs` en pruebas.
 
 ## Concurrencia e idempotencia
 
@@ -105,11 +105,11 @@ Reglas de validación del payload:
 |---|---|---|---|---|---|---|
 | **H-01** | **Alta / bloqueante** | `RouterRest.java`, DTOs | OpenAPI exponía las rutas sin `requestBody`, sin esquemas de respuesta y todas como `200` | Documentación engañosa para consumidores y para la entrega | `@Operation`, `@RequestBody`, `@Parameter` y `@ApiResponse`; esquemas en DTOs; `docs/api/openapi.yaml`; test de contrato | **Resuelto** |
 | **H-02** | Media | `PreApprovedUsageR2dbcAdapter.java:191` | Detección de duplicado por texto `"duplicate key"` | Frágil ante cambios de driver/mensaje | Validar SQLState `23505` en la cadena de causas; test unitario | **Resuelto** |
-| **H-03** | **Alta / bloqueante** | `PreApprovedUsageHandler.java` | Sin validación de longitudes (`VARCHAR(40/80)`) | Un valor demasiado largo provocaba error de BD y `500` en vez de `400` | Límites 80/40/40 después de `trim()`; tests y smoke test | **Resuelto** |
-| **H-04** | Media | `PayloadHasher.java`, `schema.sql:13` | La BD redondea a 2 decimales, pero el hash usaba la escala original | Un monto como `100.005` se guardaba como `100.01`; un replay con `100.01` se trataba como conflicto | Rechazar con `400` montos con más de 2 decimales; `100.000` se acepta; test de escala y overflow | **Resuelto** |
+| **H-03** | **Alta / bloqueante** | `CreatePreApprovedUsageRequest.java` | Sin validación de longitudes (`VARCHAR(40/80)`) | Un valor demasiado largo provocaba error de BD y `500` en vez de `400` | Bean Validation (`@NotBlank`, `@Size`) con `trim()` en el DTO y `ValidadorRequest`; tests y smoke test | **Resuelto** |
+| **H-04** | Media | `PayloadHasher.java`, `schema.sql:13` | La BD redondea a 2 decimales, pero el hash usaba la escala original | Un monto como `100.005` se guardaba como `100.01`; un replay con `100.01` se trataba como conflicto | `@MaxDecimalPlaces(2)` y `@MaxIntegerDigits(17)` rechazan con `400`; `100.000` se acepta; test de escala y overflow | **Resuelto** |
 | **H-05** | Baja | `application.yaml` | `spring.sql.init.mode=always` en todos los entornos | Aceptable para demo; riesgoso para producción | Externalizar `SQL_INIT_MODE`, `SQL_INIT_SCHEMA_LOCATIONS` y `SQL_INIT_DATA_LOCATIONS`; Flyway/Liquibase queda como mejora para producción | **Mitigado** |
 | **H-06** | Baja | `application.yaml` | CORS con orígenes fijos | Dificultaba despliegues en otros dominios | Externalizar `CORS_ALLOWED_ORIGINS` en `application.yaml`, Compose y `.env.example` | **Resuelto** |
-| **H-07** | Media | `docs/`, `front/` | Faltaban frontend Angular, ADRs, `docs/arquitectura.md`, `docs/uso-ia.md` y OpenAPI estático | Entrega incompleta fuera del backend | Frontend Angular 22 (RF07), ADR-001 a ADR-008, `docs/arquitectura.md`, `docs/uso-ia.md`, `docs/entrega.md` y `docs/api/openapi.yaml` | **Resuelto** |
+| **H-07** | Media | `docs/`, `front/` | Faltaban frontend Angular, ADRs, `docs/arquitectura.md`, `docs/uso-ia.md` y OpenAPI estático | Entrega incompleta fuera del backend | Frontend Angular 22 (RF07), ADR-001 a ADR-009, `docs/arquitectura.md`, `docs/uso-ia.md`, `docs/entrega.md` y `docs/api/openapi.yaml` | **Resuelto** |
 
 ## Recomendación
 

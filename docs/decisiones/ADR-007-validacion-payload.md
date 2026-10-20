@@ -48,7 +48,8 @@ confundir un payload mal formado con una solicitud válida pero no autorizada.
 ### Negativas
 
 - El cliente debe enviar montos con máximo dos decimales.
-- Se agregan validaciones manuales en el handler.
+- Se agregan constraints custom (`@MaxDecimalPlaces`, `@MaxIntegerDigits`) y un
+  `ValidadorRequest`; no hay validación manual en el handler.
 
 ### Riesgos
 
@@ -57,6 +58,7 @@ confundir un payload mal formado con una solicitud válida pero no autorizada.
 
 ## Referencias
 
-- `PreApprovedUsageHandler.validate`
+- `CreatePreApprovedUsageRequest`
+- `ValidadorRequest`, `MaxDecimalPlaces`, `MaxIntegerDigits`
 - `PreApprovedUsageHandlerTest`
 - `docs/REVISION-BACKEND.md` (H-03/H-04)

@@ -26,7 +26,7 @@ bancoias/
 ├── front/                      Angular 22 + Nginx (Dockerfile, nginx.conf)
 ├── docs/
 │   ├── arquitectura.md         vista de contexto, contenedores, capas, datos y secuencias
-│   ├── decisiones/             ADR-001 a ADR-008
+│   ├── decisiones/             ADR-001 a ADR-009
 │   ├── api/openapi.yaml        contrato OpenAPI estático
 │   ├── entrega.md              trazabilidad RF01–RF07
 │   ├── uso-ia.md               registro del uso de IA

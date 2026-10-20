@@ -49,6 +49,10 @@ en la terminal.
   26 frontend) y se verificó cada suite antes de documentar.
 - **Frontend:** se mantuvo una página con formulario, resultado y tabla en lugar de
   dividir en muchos componentes, para conservar el alcance acotado y la claridad.
+- **Estilo sin `if`:** se reemplazaron los 23 `if` del código principal por Bean
+  Validation, `Optional`, `switch` exhaustivo y operadores reactivos, siguiendo el
+  patrón de CrediYa (`pragma`). Se validó con los 50 tests de backend, los 26 de
+  frontend y el smoke test.
 - **RabbitMQ:** se descartó su implementación y se documentó la decisión en
   `ADR-006`, priorizando el alcance obligatorio.
 

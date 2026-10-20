@@ -24,7 +24,7 @@ con su implementación, prueba y forma de verificación.
 | Persistencia de solicitudes procesadas | PostgreSQL 16 con `preapproved_usage` |
 | Pruebas automatizadas | 50 tests backend (JUnit/Testcontainers) y 26 tests frontend (Vitest) |
 | Instrucciones de ejecución | `README.md`, `make up`, `make test`, `make smoke` |
-| Registro de decisiones técnicas | `docs/decisiones/` (ADR-001 a ADR-008) y `docs/arquitectura.md` |
+| Registro de decisiones técnicas | `docs/decisiones/` (ADR-001 a ADR-009) y `docs/arquitectura.md` |
 | Registro de uso de IA | `docs/uso-ia.md` |
 | Historial de commits | `git log` (commits por fase: backend, correcciones, frontend, documentación) |
 
