@@ -1,0 +1,258 @@
+<section class="workspace">
+  <article class="card form-card">
+    <div class="card__header">
+      <div>
+        <p class="card__eyebrow">Nueva solicitud</p>
+        <h2>Consumir cupo preaprobado</h2>
+      </div>
+      <span class="card__hint">Validación en el backend</span>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field">
+        <label for="requestReference">Referencia</label>
+        <input
+          id="requestReference"
+          formControlName="requestReference"
+          maxlength="80"
+          placeholder="REF-001"
+          autocomplete="off"
+        />
+        @if (
+          form.controls.requestReference.touched &&
+          form.controls.requestReference.hasError('required')
+        ) {
+          <p class="field__error">La referencia es obligatoria.</p>
+        }
+        @if (
+          form.controls.requestReference.touched &&
+          form.controls.requestReference.hasError('maxlength')
+        ) {
+          <p class="field__error">Máximo 80 caracteres.</p>
+        }
+      </div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="preApprovedId">Preaprobado</label>
+          <input
+            id="preApprovedId"
+            formControlName="preApprovedId"
+            maxlength="40"
+            placeholder="PRA-1001"
+            autocomplete="off"
+          />
+          @if (
+            form.controls.preApprovedId.touched &&
+            form.controls.preApprovedId.hasError('required')
+          ) {
+            <p class="field__error">El preaprobado es obligatorio.</p>
+          }
+          @if (
+            form.controls.preApprovedId.touched &&
+            form.controls.preApprovedId.hasError('maxlength')
+          ) {
+            <p class="field__error">Máximo 40 caracteres.</p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="customerId">Cliente</label>
+          <input
+            id="customerId"
+            formControlName="customerId"
+            maxlength="40"
+            placeholder="USR-10"
+            autocomplete="off"
+          />
+          @if (
+            form.controls.customerId.touched &&
+            form.controls.customerId.hasError('required')
+          ) {
+            <p class="field__error">El cliente es obligatorio.</p>
+          }
+          @if (
+            form.controls.customerId.touched &&
+            form.controls.customerId.hasError('maxlength')
+          ) {
+            <p class="field__error">Máximo 40 caracteres.</p>
+          }
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="amount">Monto (COP)</label>
+        <input
+          id="amount"
+          type="number"
+          formControlName="amount"
+          min="0"
+          step="0.01"
+          placeholder="600000"
+        />
+        @if (
+          form.controls.amount.touched &&
+          form.controls.amount.hasError('required')
+        ) {
+          <p class="field__error">El monto es obligatorio.</p>
+        }
+        @if (
+          form.controls.amount.touched && form.controls.amount.hasError('min')
+        ) {
+          <p class="field__error">El monto no puede ser negativo.</p>
+        }
+      </div>
+
+      <button type="submit" class="button" [disabled]="submitting()">
+        {{ submitting() ? 'Procesando...' : 'Procesar solicitud' }}
+      </button>
+    </form>
+  </article>
+
+  <article class="card result-card">
+    <div class="card__header">
+      <div>
+        <p class="card__eyebrow">Resultado</p>
+        <h2>Respuesta del core</h2>
+      </div>
+    </div>
+
+    @if (conflictMessage()) {
+      <div class="alert alert--warning" role="alert">
+        <strong>Referencia ya procesada</strong>
+        <p>{{ conflictMessage() }}</p>
+        <p class="alert__hint">
+          Se conserva el resultado original; no se descontó cupo nuevamente.
+        </p>
+      </div>
+    }
+
+    @if (errorMessage()) {
+      <div class="alert alert--error" role="alert">{{ errorMessage() }}</div>
+    }
+
+    @if (result(); as usage) {
+      <div class="result">
+        <div class="result__top">
+          <span
+            class="badge"
+            [class.badge--approved]="usage.status === 'APPROVED'"
+            [class.badge--rejected]="usage.status === 'REJECTED'"
+          >
+            {{ usage.status }}
+          </span>
+          @if (usage.replayed) {
+            <span class="badge badge--replay">REPLAY</span>
+          }
+          @if (conflictMessage()) {
+            <span class="badge badge--original">ORIGINAL</span>
+          }
+        </div>
+
+        <dl class="result__grid">
+          <div>
+            <dt>Referencia</dt>
+            <dd>{{ usage.requestReference }}</dd>
+          </div>
+          <div>
+            <dt>Preaprobado</dt>
+            <dd>{{ usage.preApprovedId }}</dd>
+          </div>
+          <div>
+            <dt>Cliente</dt>
+            <dd>{{ usage.customerId }}</dd>
+          </div>
+          <div>
+            <dt>Monto</dt>
+            <dd>{{ usage.amount | number: '1.0-2' }} COP</dd>
+          </div>
+          <div>
+            <dt>Cupo restante</dt>
+            <dd>{{ usage.remainingAmount | number: '1.0-2' }} COP</dd>
+          </div>
+          <div>
+            <dt>Procesada</dt>
+            <dd>{{ usage.processedAt | date: 'medium' }}</dd>
+          </div>
+        </dl>
+
+        @if (usage.reason) {
+          <p class="result__reason">
+            Motivo: <strong>{{ usage.reason }}</strong>
+          </p>
+        }
+      </div>
+    } @else if (!conflictMessage() && !errorMessage()) {
+      <div class="empty-state">
+        <p>Aún no hay una solicitud procesada en esta sesión.</p>
+        <p>Completa el formulario para ver el resultado.</p>
+      </div>
+    }
+  </article>
+</section>
+
+<section class="card table-card">
+  <div class="card__header">
+    <div>
+      <p class="card__eyebrow">Historial</p>
+      <h2>Solicitudes recientes</h2>
+    </div>
+    <button
+      type="button"
+      class="button button--ghost"
+      (click)="loadRecent()"
+      [disabled]="loadingRecent()"
+    >
+      {{ loadingRecent() ? 'Actualizando...' : 'Actualizar' }}
+    </button>
+  </div>
+
+  @if (recentError()) {
+    <div class="alert alert--error" role="alert">{{ recentError() }}</div>
+  }
+
+  @if (recent().length === 0 && !loadingRecent()) {
+    <div class="empty-state">
+      <p>No hay solicitudes procesadas todavía.</p>
+    </div>
+  } @else {
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Referencia</th>
+            <th>Preaprobado</th>
+            <th>Cliente</th>
+            <th>Monto</th>
+            <th>Estado</th>
+            <th>Motivo</th>
+            <th>Procesada</th>
+            <th>Cupo restante</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (usage of recent(); track usage.requestReference) {
+            <tr>
+              <td class="mono">{{ usage.requestReference }}</td>
+              <td>{{ usage.preApprovedId }}</td>
+              <td>{{ usage.customerId }}</td>
+              <td>{{ usage.amount | number: '1.0-2' }}</td>
+              <td>
+                <span
+                  class="badge badge--compact"
+                  [class.badge--approved]="usage.status === 'APPROVED'"
+                  [class.badge--rejected]="usage.status === 'REJECTED'"
+                >
+                  {{ usage.status }}
+                </span>
+              </td>
+              <td>{{ usage.reason ?? '—' }}</td>
+              <td>{{ usage.processedAt | date: 'short' }}</td>
+              <td>{{ usage.remainingAmount | number: '1.0-2' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
