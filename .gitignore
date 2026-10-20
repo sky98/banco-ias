@@ -4,3 +4,6 @@
 front/node_modules/
 front/dist/
 front/.angular/
+
+# Generado por el scaffold de Clean Architecture durante el build
+back/applications/app-service/src/test/java/co/com/bancoias/.gitignore

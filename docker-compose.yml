@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bancoias}
+      POSTGRES_USER: ${POSTGRES_USER:-bancoias}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bancoias}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bancoias} -d ${POSTGRES_DB:-bancoias}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  back:
+    build:
+      context: ./back
+      dockerfile: deployment/Dockerfile
+    ports:
+      - "${BACK_PORT:-8080}:8080"
+    environment:
+      SPRING_R2DBC_URL: r2dbc:postgresql://db:5432/${POSTGRES_DB:-bancoias}
+      SPRING_R2DBC_USERNAME: ${POSTGRES_USER:-bancoias}
+      SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD:-bancoias}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
