@@ -1,7 +1,8 @@
 # Plan de implementación — Prueba técnica BancoIAS
 
-> Estado: **backend implementado, corregido y con pruebas en verde**. Hallazgos H-01 a H-06
-> resueltos o mitigados. Frontend Angular, ADRs y documentación de arquitectura pendientes.
+> Estado: **entrega completa del alcance obligatorio (RF01–RF07)**. Backend corregido y con
+> 50 tests en verde, frontend Angular con 12 tests, ADRs, arquitectura, uso de IA y trazabilidad
+> en `docs/`. Solo quedan opcionales: RabbitMQ y Flyway/Liquibase.
 
 ## Contexto
 
@@ -477,11 +478,14 @@ Backend terminado:
   escala, detección de duplicados por SQLState `23505`, SQL init y CORS externalizados.
 - `docs/api/openapi.yaml` generado y smoke test ampliado con casos `400`.
 
-Pendiente:
+Frontend y documentación:
 
-- Frontend Angular (RF07).
-- `docs/arquitectura.md`, ADRs y `docs/uso-ia.md`.
-- RabbitMQ opcional.
+- Frontend Angular 22 (RF07) con formulario, resultado, tabla reciente y 12 tests.
+- `docs/arquitectura.md`, ADR-001 a ADR-008, `docs/uso-ia.md` y `docs/entrega.md`.
+
+Pendiente (opcional):
+
+- RabbitMQ (ADR-006 documenta el descarte).
 - Flyway/Liquibase para producción (H-05).
 
 ### Ajustes ya incorporados

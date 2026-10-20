@@ -2,15 +2,16 @@
 
 - **Fecha:** 2026-10-20
 - **Alcance:** backend `back/` (Java 21, Spring Boot 4.1.1, WebFlux, R2DBC PostgreSQL)
-- **Estado:** correcciones **H-01 a H-06** aplicadas y verificadas; **H-07 parcial** (OpenAPI estático generado)
-- **Commits de corrección:** `52ecdb7`, `5bc9922`, `3823752`, `a64915c` y el commit de documentación
+- **Estado:** correcciones **H-01 a H-07** aplicadas y verificadas
+- **Commits de corrección:** `52ecdb7`, `5bc9922`, `3823752`, `a64915c`, `87964ce`; frontend y documentación posteriores
 
 ## Veredicto
 
 Implementación sólida y verificable. La funcionalidad principal, la concurrencia y la
 idempotencia están cubiertas por pruebas reales y por un smoke test de extremo a extremo.
-Los hallazgos bloqueantes **H-01** y **H-03** quedan resueltos. Para una entrega completa
-falta cerrar **H-07**: frontend Angular, ADRs, documentación de arquitectura y `docs/uso-ia.md`.
+Los hallazgos bloqueantes **H-01** y **H-03** quedan resueltos. **H-07** también queda
+cerrado con el frontend Angular (RF07), los ADR, `docs/arquitectura.md`, `docs/uso-ia.md` y
+`docs/entrega.md`. Ver la matriz de trazabilidad en `docs/entrega.md`.
 
 ## Evidencia
 
@@ -108,15 +109,14 @@ Reglas de validación del payload:
 | **H-04** | Media | `PayloadHasher.java`, `schema.sql:13` | La BD redondea a 2 decimales, pero el hash usaba la escala original | Un monto como `100.005` se guardaba como `100.01`; un replay con `100.01` se trataba como conflicto | Rechazar con `400` montos con más de 2 decimales; `100.000` se acepta; test de escala y overflow | **Resuelto** |
 | **H-05** | Baja | `application.yaml` | `spring.sql.init.mode=always` en todos los entornos | Aceptable para demo; riesgoso para producción | Externalizar `SQL_INIT_MODE`, `SQL_INIT_SCHEMA_LOCATIONS` y `SQL_INIT_DATA_LOCATIONS`; Flyway/Liquibase queda como mejora para producción | **Mitigado** |
 | **H-06** | Baja | `application.yaml` | CORS con orígenes fijos | Dificultaba despliegues en otros dominios | Externalizar `CORS_ALLOWED_ORIGINS` en `application.yaml`, Compose y `.env.example` | **Resuelto** |
-| **H-07** | Media | `docs/` | Faltan frontend Angular, ADRs, `docs/arquitectura.md`, `docs/uso-ia.md` y OpenAPI estático | Entrega incompleta fuera del backend | OpenAPI estático generado; el resto queda para la siguiente fase | **Parcial** |
+| **H-07** | Media | `docs/`, `front/` | Faltaban frontend Angular, ADRs, `docs/arquitectura.md`, `docs/uso-ia.md` y OpenAPI estático | Entrega incompleta fuera del backend | Frontend Angular 22 (RF07), ADR-001 a ADR-008, `docs/arquitectura.md`, `docs/uso-ia.md`, `docs/entrega.md` y `docs/api/openapi.yaml` | **Resuelto** |
 
 ## Recomendación
 
 Antes de una entrega formal:
 
-1. Completar **H-07**: frontend Angular, ADRs, `docs/arquitectura.md` y `docs/uso-ia.md`.
-2. Evaluar Flyway o Liquibase para reemplazar `spring.sql.init` en producción.
-3. Mantener RabbitMQ como opcional si el alcance obligatorio ya está cerrado.
+1. Evaluar Flyway o Liquibase para reemplazar `spring.sql.init` en producción (H-05).
+2. Mantener RabbitMQ como opcional; su descarte está en ADR-006.
 
 ## Comandos de verificación
 
@@ -139,5 +139,5 @@ docker compose down -v
 
 ## Próximo paso
 
-Cerrar **H-07** cuando el usuario lo indique. Los hallazgos del backend quedan resueltos o
-mitigados y verificados con pruebas reales.
+Los hallazgos H-01 a H-07 quedan resueltos o mitigados y verificados con pruebas reales.
+Solo quedan mejoras opcionales (Flyway/Liquibase y RabbitMQ).

@@ -6,14 +6,11 @@ consistencia del cupo bajo concurrencia y en la idempotencia por referencia.
 
 ## Stack
 
-- Java 21
-- Spring Boot 4.1.1 / WebFlux
-- R2DBC PostgreSQL
-- Gradle 9.8.0 (wrapper)
-- Scaffold Bancolombia Clean Architecture 4.7.4
-- PostgreSQL 16
-- Springdoc/OpenAPI, Actuator y ArchUnit
-- JUnit 5, Reactor Test, Mockito y Testcontainers
+- Backend: Java 21, Spring Boot 4.1.1 / WebFlux, R2DBC PostgreSQL, Gradle 9.8.0 (wrapper),
+  scaffold Bancolombia Clean Architecture 4.7.4, Springdoc/OpenAPI, Actuator y ArchUnit
+- Frontend: Angular 22 (standalone, signals, reactive forms), Vitest, Node 24 en build
+- Infraestructura: PostgreSQL 16, Nginx (sirve la SPA y hace proxy de `/api`), Docker Compose
+- Pruebas: JUnit 5, Reactor Test, Mockito, Testcontainers y Vitest
 
 ## Estructura
 
@@ -26,20 +23,26 @@ bancoias/
 │   ├── infrastructure/driven-adapters/r2dbc-postgresql
 │   ├── infrastructure/entry-points/reactive-web
 │   └── deployment/Dockerfile
-├── docs/PLAN-IMPLEMENTACION.md
+├── front/                      Angular 22 + Nginx (Dockerfile, nginx.conf)
+├── docs/
+│   ├── arquitectura.md         vista de contexto, contenedores, capas, datos y secuencias
+│   ├── decisiones/             ADR-001 a ADR-008
+│   ├── api/openapi.yaml        contrato OpenAPI estático
+│   ├── entrega.md              trazabilidad RF01–RF07
+│   ├── uso-ia.md               registro del uso de IA
+│   ├── PLAN-IMPLEMENTACION.md
+│   └── REVISION-BACKEND.md
 ├── scripts/smoke-test.sh
 ├── docker-compose.yml
 └── Makefile
 ```
-
-El frontend Angular está pendiente; por ahora el alcance implementado es el backend.
 
 ## Ejecución
 
 Requisitos: Docker y Docker Compose.
 
 ```bash
-make up        # construye y levanta db + back
+make up        # construye y levanta db, back y front
 make logs      # sigue los logs
 make down      # detiene sin borrar datos
 make reset     # borra el volumen y vuelve a sembrar
@@ -52,14 +55,22 @@ docker compose up --build
 docker compose down -v
 ```
 
-La API queda en `http://localhost:8080` y Swagger en
-`http://localhost:8080/swagger-ui.html`.
+Puertos:
+
+- Interfaz Angular: `http://localhost:8081`
+- API: `http://localhost:8080`; Swagger en `http://localhost:8080/swagger-ui.html`
+- PostgreSQL: `localhost:5432`
+
+La interfaz permite registrar una solicitud (valores demo `USR-10`, `PRA-1001`,
+`REF-001`, `600000`), ver el resultado (estado, motivo, cupo restante, replay o
+resultado original en un `409`) y revisar las solicitudes recientes.
 
 Para Docker Compose, copiar `.env.example` a `.env` y ajustar los valores. Variables
 principales:
 
 | Variable | Default | Uso |
 |---|---|---|
+| `FRONT_PORT` | `8081` | Puerto publicado de la interfaz |
 | `SERVER_PORT` | `8080` | Puerto HTTP |
 | `SPRING_R2DBC_URL` | `r2dbc:postgresql://localhost:5432/bancoias` | Conexión R2DBC |
 | `SPRING_R2DBC_USERNAME` | `bancoias` | Usuario de base de datos |
@@ -158,17 +169,24 @@ RETURNING available_amount;
 ## Pruebas
 
 ```bash
-make test
+make test         # backend + frontend
+make test-back    # solo backend
+make test-front   # solo frontend
 ```
 
-El comando ejecuta todo el backend en un contenedor con JDK 21 y Docker disponible para
-Testcontainers. Incluye:
+Backend (50 tests), en un contenedor con JDK 21 y Docker disponible para Testcontainers:
 
 - Unitarias de política, hash y casos de uso.
-- WebTestClient para los endpoints.
+- WebTestClient para los endpoints y validaciones.
 - Integración R2DBC con PostgreSQL vía Testcontainers.
-- Idempotencia, conflictos, rechazos y concurrencia.
+- Idempotencia, conflictos, rechazos, concurrencia y contrato OpenAPI.
 - ArchUnit para reglas de arquitectura.
+
+Frontend (12 tests), en un contenedor Node 24 con Vitest:
+
+- Servicio HTTP con `HttpTestingController`.
+- Página: defaults, envío exitoso, replay, conflicto `409`, validación `400`, tabla y
+  formulario inválido.
 
 ## Smoke test
 
@@ -178,11 +196,15 @@ Con el backend arriba y la base recién sembrada:
 make smoke
 ```
 
-El script valida aprobación, replay, rechazo por cupo, rechazo por monto, conflicto de
-referencia y concurrencia (5 aprobadas y 1 rechazada sobre `PRA-2001`).
+El script valida aprobación, replay, rechazo por cupo, rechazo por monto, referencia
+demasiado larga (`400`), monto con más de dos decimales (`400`), conflicto de referencia
+(`409`) y concurrencia (5 aprobadas y 1 rechazada sobre `PRA-2001`).
 
-## Pendientes
+## Limitaciones y pendientes
 
-- Frontend Angular (RF07).
-- ADRs y documentación de arquitectura.
-- RabbitMQ opcional.
+- Sin autenticación ni administración de clientes o preaprobados (fuera del alcance del PDF).
+- RabbitMQ no implementado (opcional); decisión documentada en `docs/decisiones/ADR-006-rabbitmq-opcional.md`.
+- El esquema se inicializa con `spring.sql.init`; para producción se recomienda Flyway o
+  Liquibase (H-05 en `docs/REVISION-BACKEND.md`).
+- El smoke test asume la base recién sembrada: ejecutar `make reset` antes de repetirlo.
+- Los montos aceptan máximo dos decimales; `100.005` responde `400` (ADR-007).
