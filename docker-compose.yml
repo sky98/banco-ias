@@ -29,8 +29,24 @@ services:
       SQL_INIT_MODE: ${SQL_INIT_MODE:-always}
       SQL_INIT_SCHEMA_LOCATIONS: ${SQL_INIT_SCHEMA_LOCATIONS:-classpath:schema.sql}
       SQL_INIT_DATA_LOCATIONS: ${SQL_INIT_DATA_LOCATIONS:-classpath:data.sql}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     depends_on:
       db:
+        condition: service_healthy
+
+  front:
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONT_PORT:-8081}:80"
+    depends_on:
+      back:
         condition: service_healthy
 
 volumes:

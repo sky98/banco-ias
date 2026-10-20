@@ -2,23 +2,26 @@ SHELL := /bin/bash
 COMPOSE := docker compose
 GRADLE_IMAGE := gradle:9.8.0-jdk21
 GRADLE_CACHE_VOLUME := bancoias-gradle-cache
+NODE_IMAGE := node:24-alpine
 
-.PHONY: help up down reload reset restart logs ps test test-back build build-back smoke db
+.PHONY: help up down reload reset restart logs ps test test-back test-front build build-back build-front smoke db
 
 help:
 	@echo "BancoIAS - comandos disponibles"
 	@echo ""
-	@echo "  make up          Construye y levanta db y back"
+	@echo "  make up          Construye y levanta db, back y front"
 	@echo "  make down        Detiene contenedores (conserva el volumen de datos)"
 	@echo "  make reload      down + up --build (conserva datos)"
 	@echo "  make reset       down -v + up --build (borra datos y vuelve a sembrar)"
 	@echo "  make restart     Reinicia servicios sin reconstruir"
 	@echo "  make logs        Sigue los logs"
 	@echo "  make ps          Estado de los contenedores"
-	@echo "  make test        Ejecuta pruebas del backend"
+	@echo "  make test        Ejecuta pruebas de backend y frontend"
 	@echo "  make test-back   Ejecuta pruebas del backend"
-	@echo "  make build       Compila el backend"
+	@echo "  make test-front  Ejecuta pruebas del frontend"
+	@echo "  make build       Compila backend y frontend"
 	@echo "  make build-back  Compila el backend"
+	@echo "  make build-front Compila el frontend"
 	@echo "  make smoke       Ejecuta el smoke test contra la API"
 	@echo "  make db          Levanta solo PostgreSQL"
 
@@ -45,7 +48,7 @@ logs:
 ps:
 	$(COMPOSE) ps
 
-test: test-back
+test: test-back test-front
 
 test-back:
 	docker run --rm --network host \
@@ -58,7 +61,13 @@ test-back:
 		-w /home/gradle/project \
 		$(GRADLE_IMAGE) ./gradlew test --no-daemon
 
-build: build-back
+test-front:
+	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp \
+		-v "$(CURDIR)/front:/app" \
+		-w /app \
+		$(NODE_IMAGE) sh -c "npm ci && npx ng test --watch=false"
+
+build: build-back build-front
 
 build-back:
 	docker run --rm \
@@ -67,6 +76,12 @@ build-back:
 		-v "$(GRADLE_CACHE_VOLUME):/home/gradle/.gradle" \
 		-w /home/gradle/project \
 		$(GRADLE_IMAGE) ./gradlew :app-service:bootJar --no-daemon
+
+build-front:
+	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp \
+		-v "$(CURDIR)/front:/app" \
+		-w /app \
+		$(NODE_IMAGE) sh -c "npm ci && npm run build"
 
 smoke:
 	./scripts/smoke-test.sh
